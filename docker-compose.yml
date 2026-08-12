@@ -1,0 +1,39 @@
+# Copy .env.example to ".env" in this directory. Compose loads ".env" for ${VAR}
+# substitution below (https://docs.docker.com/compose/environment-variables/set-environment-variables/)
+
+services:
+  backend:
+    build:
+      context: ./apps/firescrapling/backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-data:/app/data
+    environment:
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
+      API_REQUIRE_AUTH: ${API_REQUIRE_AUTH:-true}
+      API_ALLOW_PRIVATE_URLS: ${API_ALLOW_PRIVATE_URLS:-false}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-}
+      OPENROUTER_HTTP_REFERER: ${OPENROUTER_HTTP_REFERER:-}
+      OPENROUTER_APP_TITLE: ${OPENROUTER_APP_TITLE:-}
+      PLAYGROUND_ENABLED: ${PLAYGROUND_ENABLED:-true}
+      PLAYGROUND_RATE_LIMIT_PER_MINUTE: ${PLAYGROUND_RATE_LIMIT_PER_MINUTE:-8}
+      PLAYGROUND_MAP_MAX_LINKS: ${PLAYGROUND_MAP_MAX_LINKS:-40}
+      PLAYGROUND_CRAWL_LIMIT: ${PLAYGROUND_CRAWL_LIMIT:-3}
+      PLAYGROUND_RESULT_PREVIEW_CHARS: ${PLAYGROUND_RESULT_PREVIEW_CHARS:-12000}
+
+  frontend:
+    build:
+      context: ./apps/firescrapling/frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  backend-data:

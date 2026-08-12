@@ -1,0 +1,16 @@
+scrapling
+playwright>=1.40.0
+curl_cffi
+browserforge
+markdownify
+trafilatura>=1.6.0
+tldextract>=5.0.0
+beautifulsoup4>=4.12.0
+pandas
+openpyxl
+fastapi>=0.115.0
+uvicorn[standard]>=0.27.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.0
+openai>=1.40.0
+python-dotenv>=1.0.0

@@ -1,0 +1,50 @@
+---
+title: "API Reference"
+description: "Professional OpenAPI 3.1 documentation for FireScrapling."
+---
+
+## OpenAPI Specification
+
+FireScrapling follows the [OpenAPI 3.1 specification](https://github.com/OAI/OpenAPI-Specification/blob/main/versions/3.1.0.md). You can download our full YAML specification here:
+
+<Card
+  title="Download OpenAPI YAML"
+  icon="file-code"
+  href="https://api.firescrapling.com/v1/openapi.yaml"
+>
+  Download our full OpenAPI 3.1 specification to use in your own tools or SDK generators.
+</Card>
+
+## Authentication
+
+All API endpoints require a `Bearer YOUR_API_KEY` token in the `Authorization` header. You can manage your API keys in the [FireScrapling Dashboard](https://dashboard.firescrapling.com).
+
+```bash
+-H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Playground
+
+Our documentation features an **Interactive Playground**. To test the API directly from the docs:
+
+1.  Navigate to any endpoint (e.g., [POST /scrape](/api-reference/endpoint/scrape)).
+2.  In the right-hand panel, enter your **API Key** in the `Authentication` field.
+3.  Fill in the required body parameters.
+4.  Click **"Try It"** to see the real-time response from our servers.
+
+<Warning>
+  Please note that requests made from the playground consume your monthly credits.
+</Warning>
+
+## Error Handling
+
+FireScrapling uses standard HTTP status codes to indicate the success or failure of an API request.
+
+| Status | Description |
+| :--- | :--- |
+| `200` | **OK**: The request was successful. |
+| `202` | **Accepted**: The asynchronous job has been started. |
+| `401` | **Unauthorized**: Invalid or missing API key. |
+| `402` | **Payment Required**: No credits remaining in your balance. |
+| `429` | **Too Many Requests**: You have exceeded the rate limit. |
+| `500` | **Server Error**: An internal error occurred on our end. |

@@ -1,0 +1,174 @@
+{
+  "react_icons": [
+    {
+      "brand": "Python",
+      "export_name": "SiPython",
+      "usage": "tech_badge",
+      "reason": "Official Python icon for tech stack display"
+    },
+    {
+      "brand": "OpenAI",
+      "export_name": "SiOpenai",
+      "usage": "tech_badge",
+      "reason": "AI extraction provider icon"
+    },
+    {
+      "brand": "Google Gemini",
+      "export_name": "SiGooglegemini",
+      "usage": "tech_badge",
+      "reason": "AI extraction provider icon"
+    },
+    {
+      "brand": "Playwright",
+      "export_name": "SiPlaywright",
+      "usage": "tech_badge",
+      "reason": "Underlying browser automation technology"
+    },
+    {
+      "brand": "Chromium",
+      "export_name": "SiChromium",
+      "usage": "tech_badge",
+      "reason": "Browser engine icon"
+    }
+  ],
+  "downloaded_assets": [
+    {
+      "id": "hero-tech-circuitry-1",
+      "kind": "photo",
+      "filename": "hero-tech-circuitry-1.jpg",
+      "title": "Futuristic Digital Circuitry",
+      "description": "Abstract high-tech visualization with red/orange glow",
+      "visual_description": "A complex layered digital circuitry background with glowing red and orange geometric shapes, white light streaks, and deep shadows. It feels like looking into the core of a powerful server or AI engine.",
+      "color_notes": "Dominant: Deep red (#91414E), bright orange accents, and dark tech shadows. Perfect for 'FireScrapling' dark mode with orange accents.",
+      "mood": "powerful, futuristic, technical",
+      "placement": "hero",
+      "recommended": true,
+      "alt_text": "Glowing red and orange abstract digital circuitry",
+      "dimensions": "1200x633",
+      "source_page_url": "https://www.pexels.com/photo/futuristic-abstract-technology-background-30547594/",
+      "provider": "Pexels",
+      "photographer": "Pachon in Motion",
+      "avg_color": "#91414E",
+      "verified_via": "read_image",
+      "why_it_was_chosen": "Perfectly matches the app's 'Fire' theme and dark mode requirement with powerful red/orange tech visuals."
+    },
+    {
+      "id": "hero-data-matrix-2",
+      "kind": "photo",
+      "filename": "hero-data-matrix-2.jpg",
+      "title": "Abstract Data Matrix",
+      "description": "Vibrant digital art showcasing red and black hues in a matrix pattern",
+      "visual_description": "An abstract 3D grid of glowing red cubes and data points receding into a dark horizon. High contrast with intense red saturation.",
+      "color_notes": "Dominant: Intense red (#8B2A35) and black. High energy and modern feel.",
+      "mood": "high-performance, intense, modern",
+      "placement": "hero",
+      "recommended": false,
+      "alt_text": "Vibrant red and black digital data matrix",
+      "dimensions": "1200x633",
+      "source_page_url": "https://www.pexels.com/photo/abstract-red-and-black-digital-matrix-art-30547576/",
+      "provider": "Pexels",
+      "photographer": "Pachon in Motion",
+      "avg_color": "#8B2A35",
+      "verified_via": "read_image",
+      "why_it_was_chosen": "Strong alternative for a more 'raw data' or matrix-focused aesthetic."
+    },
+    {
+      "id": "card-network-glow-2",
+      "kind": "photo",
+      "filename": "card-network-glow-2.jpg",
+      "title": "Glowing Data Network",
+      "description": "Abstract network structure with orange lines and dots",
+      "visual_description": "A dense, intricate web of glowing orange lines and nodes against a pitch-black background. Represents connectivity and complex data extraction paths.",
+      "color_notes": "Dominant: Vibrant orange (#621E04) on pure black.",
+      "mood": "connected, complex, precise",
+      "placement": "card_media",
+      "recommended": true,
+      "alt_text": "Glowing orange network web of lines and dots",
+      "dimensions": "600x338",
+      "source_page_url": "https://www.pexels.com/photo/abstract-orange-lights-10325707/",
+      "provider": "Pexels",
+      "photographer": "U.Lucas Dubé-Cantin",
+      "avg_color": "#621E04",
+      "verified_via": "read_image",
+      "why_it_was_chosen": "Abstractly represents the 'web' in web scraping while maintaining the fire/orange theme."
+    },
+    {
+      "id": "card-code-editor-1",
+      "kind": "photo",
+      "filename": "card-code-editor-1.jpg",
+      "title": "Technical Code View",
+      "description": "Close-up of HTML/CSS code with red/orange highlights",
+      "visual_description": "A dark code editor screen showing blurred lines of code with distinct orange and red syntax highlighting.",
+      "color_notes": "Dominant: Dark gray background with orange/red code text.",
+      "mood": "technical, developer-focused",
+      "placement": "card_media",
+      "recommended": true,
+      "alt_text": "Code editor with orange and red syntax highlighting",
+      "dimensions": "600x400",
+      "source_page_url": "https://www.pexels.com/photo/close-up-shot-of-computer-monitor-9858906/",
+      "provider": "Pexels",
+      "photographer": "Markus Spiske",
+      "avg_color": "#2F2627",
+      "verified_via": "read_image",
+      "why_it_was_chosen": "Communicates the 'data extraction' and 'code-to-markdown' nature of the app."
+    },
+    {
+      "id": "logo-scrapling",
+      "kind": "downloaded_logo",
+      "filename": "logo-scrapling.png",
+      "title": "Scrapling Logo",
+      "description": "Official logo for the Scrapling framework",
+      "visual_description": "Clean modern logo icon for the Scrapling project.",
+      "color_notes": "Multi-color brand mark.",
+      "mood": "professional",
+      "placement": "provider_chip",
+      "recommended": true,
+      "alt_text": "Scrapling official logo",
+      "dimensions": "intrinsic",
+      "source_page_url": "https://github.com/D4Vinci/Scrapling",
+      "provider": "Official GitHub",
+      "verified_via": "read_image",
+      "why_it_was_chosen": "Official framework logo used by FireScrapling."
+    },
+    {
+      "id": "logo-firecrawl",
+      "kind": "downloaded_logo",
+      "filename": "logo-firecrawl.png",
+      "title": "Firecrawl Logo",
+      "description": "Logo for Firecrawl (comparison/integration)",
+      "visual_description": "Company logo for Firecrawl.",
+      "placement": "integration_row",
+      "recommended": true,
+      "alt_text": "Firecrawl logo",
+      "dimensions": "intrinsic",
+      "provider": "get_logos",
+      "verified_via": "file_size_check_only",
+      "why_it_was_chosen": "Directly requested for comparison/reference in the app UI."
+    }
+  ],
+  "missing_assets": [
+    {
+      "requested_asset": "Chromium, Playwright, OpenAI (SVG Icons)",
+      "reason": "Direct SVG downloads from SimpleIcons CDN returned empty files; recommended using react-icons/si equivalents listed in the react_icons section."
+    }
+  ],
+  "css_textures": [
+    {
+      "class_name": "bg-dot-grid",
+      "placement": "hero_background",
+      "description": "Subtle dot pattern for a technical developer feel",
+      "recommended_for": "Main dashboard background or hero overlay"
+    },
+    {
+      "class_name": "bg-noise",
+      "placement": "card_background",
+      "description": "Subtle noise texture for premium tactile feel",
+      "recommended_for": "Data cards and code block containers"
+    }
+  ],
+  "usage_notes": [
+    "Use the Si* icons from react-icons/si for the cleanest tech stack display.",
+    "The 'Futuristic Digital Circuitry' photo is the recommended hero for its perfect color match with FireScrapling.",
+    "Use 'Glowing Data Network' for features explaining web structure or connectivity."
+  ]
+}

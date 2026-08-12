@@ -1,0 +1,75 @@
+{
+  "name": "FireScrapling",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "favicon": "/favicon.png",
+  "colors": {
+    "primary": "#EA580C",
+    "light": "#FB923C",
+    "dark": "#9A3412",
+    "anchors": {
+      "from": "#EA580C",
+      "to": "#DC2626"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "mailto:support@firescrapling.com"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get API Key",
+    "url": "https://dashboard.firescrapling.com"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "Community",
+      "icon": "discord",
+      "url": "https://discord.gg/firescrapling"
+    },
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/firescrapling/firescrapling"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction",
+        "quickstart"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/introduction",
+        "api-reference/endpoint/scrape",
+        "api-reference/endpoint/crawl",
+        "api-reference/endpoint/map"
+      ]
+    },
+    {
+      "group": "SDKs",
+      "pages": [
+        "sdks/python",
+        "sdks/node"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "x": "https://x.com/firescrapling",
+    "github": "https://github.com/firescrapling",
+    "linkedin": "https://www.linkedin.com/company/firescrapling"
+  }
+}

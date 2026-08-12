@@ -1,0 +1,257 @@
+openapi: 3.1.0
+info:
+  title: FireScrapling API
+  description: |
+    FireScrapling is an API-first web scraping and crawling engine designed to convert complex websites into clean, LLM-ready Markdown or structured JSON data.
+    
+    ### Key Features:
+    * **LLM-Ready Markdown**: High-quality markdown extraction optimized for RAG pipelines.
+    * **Anti-Bot Bypass**: Native support for Cloudflare, Akamai, and DataDome.
+    * **Dynamic Actions**: Interact with pages (click, scroll, wait) before extraction.
+    * **Async Crawling**: Scalable domain crawling with webhook support.
+  version: 1.5.0
+  contact:
+    name: FireScrapling Support
+    url: https://firescrapling.com/support
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.firescrapling.com/v1
+    description: Production API v1
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Enter your API Key (Bearer Token) generated from the FireScrapling Dashboard.
+
+  schemas:
+    Format:
+      type: string
+      enum: [markdown, html, raw_content, screenshot]
+      description: Requested output formats for the extraction.
+
+    Action:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [wait, click, scroll, screenshot, press]
+        selector:
+          type: string
+          description: CSS selector for the action (required for click, wait, scroll).
+        milliseconds:
+          type: integer
+          description: Duration to wait (required for wait).
+      required: [type]
+
+    ScrapeRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+          example: "https://stripe.com/docs"
+        formats:
+          type: array
+          items:
+            $ref: '#/components/schemas/Format'
+          default: ["markdown"]
+        onlyMainContent:
+          type: boolean
+          default: true
+          description: If true, removes headers, footers, and sidebars.
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Action'
+        schema:
+          type: object
+          description: Optional JSON schema for structured data extraction via AI.
+
+    ScrapeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            markdown:
+              type: string
+              description: Cleaned markdown content.
+            html:
+              type: string
+              description: Raw HTML content.
+            metadata:
+              type: object
+              properties:
+                title: {type: string}
+                description: {type: string}
+                language: {type: string}
+                source_url: {type: string}
+            llm_extraction:
+              type: object
+              description: Structured data if a schema was provided.
+
+    CrawlRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+        limit:
+          type: integer
+          default: 100
+          description: Maximum number of pages to crawl.
+        maxDepth:
+          type: integer
+          default: 2
+        webhook:
+          type: string
+          format: uri
+          description: Destination URL for crawl event notifications.
+
+    CrawlStatusResponse:
+      type: object
+      properties:
+        id: {type: string}
+        status:
+          type: string
+          enum: [scraping, completed, failed]
+        total: {type: integer}
+        completed: {type: integer}
+        credits_used: {type: integer}
+        expires_at: {type: string, format: date-time}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScrapeResponse'
+
+    MapRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+        search:
+          type: string
+          description: Filter links by search query.
+        ignoreSubdomains:
+          type: boolean
+          default: false
+
+    Error:
+      type: object
+      properties:
+        success: {type: boolean, example: false}
+        error: {type: string}
+        code: {type: string}
+
+security:
+  - BearerAuth: []
+
+paths:
+  /scrape:
+    post:
+      summary: Scrape a single URL
+      description: Extracts content from a single URL and returns it in the requested formats.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScrapeRequest'
+      responses:
+        '200':
+          description: Successful extraction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScrapeResponse'
+              examples:
+                Success:
+                  value:
+                    success: true
+                    data:
+                      markdown: "# Documentation\n\nStripe's API uses RESTful principles..."
+                      metadata:
+                        title: "Stripe Docs"
+                        language: "en"
+                        source_url: "https://stripe.com/docs"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /crawl:
+    post:
+      summary: Initiate an asynchronous crawl
+      description: Starts a crawl job for a domain. Returns a job ID to poll for results.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrawlRequest'
+      responses:
+        '202':
+          description: Crawl job accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: {type: boolean}
+                  id: {type: string}
+                  url: {type: string}
+
+  /crawl/{id}:
+    get:
+      summary: Get crawl results or status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Crawl status and data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CrawlStatusResponse'
+
+  /map:
+    post:
+      summary: Map a domain
+      description: Discovers all links on a domain without extracting content.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MapRequest'
+      responses:
+        '200':
+          description: List of discovered links
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: {type: boolean}
+                  links:
+                    type: array
+                    items: {type: string}
