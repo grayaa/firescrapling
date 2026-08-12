@@ -1,0 +1,24 @@
+---
+description: Frontend (React + Vite + Tailwind) conventions
+globs: apps/firescrapling/frontend/src/**/*.ts,apps/firescrapling/frontend/src/**/*.tsx
+alwaysApply: false
+---
+
+- **All API calls go through `src/restClient.ts`.** Add a typed function there
+  (`listApiKeys`, `getUsageSummary`, …) and call it from the component. No bare `fetch`
+  in a feature file.
+- Pick the credential explicitly: `apiFetch(path, { auth: "session" })` for account
+  routes, `"key"` for scrape/crawl/map, `"none"` for public playground and health.
+- `src/components/ui/*` are hand-written primitives, not the shadcn npm package. Open the
+  file before using a prop — several Radix conveniences (`asChild`, `indicatorClassName`)
+  exist only where explicitly added.
+- Import every icon you use from `lucide-react`. A missing import is a render-time
+  `ReferenceError`, not a lint warning — `npm run typecheck` is what catches it, so run
+  it before committing.
+- Feature views live in `src/features/*.tsx` and are switched by `activeView` in
+  `App.tsx`; there is no router.
+- Async views handle three states: loading, error (surface the message from
+  `RestApiError`), and empty. Don't ship a view that renders invented numbers when the
+  request fails — placeholder data in this codebase has already caused real confusion.
+- Styling is Tailwind with `cn()` for conditionals; follow the existing dark, uppercase
+  tracking-widest visual language.

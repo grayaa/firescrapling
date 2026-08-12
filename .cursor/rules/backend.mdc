@@ -1,0 +1,25 @@
+---
+description: Backend (FastAPI + scraping engine) conventions
+globs: apps/firescrapling/backend/**/*.py
+alwaysApply: false
+---
+
+- Routes go in `api_server.py`: validate input with a pydantic model, call into `core`
+  (`main.py`), shape the response. No scraping or SQL in the route body.
+- Auth is a dependency, never inline: `Depends(get_api_context)` for API-key routes,
+  `Depends(get_session_user)` for account routes (both in `api_auth.py`).
+- Call `_check_target_url(url)` (which wraps `validate_request_url`) before fetching any
+  user-supplied URL.
+- DB access uses `_get_db()` and parameterised SQL — never string-formatted values.
+  Commit before calling another helper that opens its own connection; SQLite permits one
+  writer at a time.
+- Record billable work with `record_api_usage(...)` after committing, passing the
+  endpoint path so `/v1/usage/summary` can aggregate it.
+- Long work belongs in the job generators (`scrape_page_streaming`,
+  `crawl_site_streaming`), which yield `{"type": "status"|"result"|"error"|"done"}`
+  events and persist logs/progress as they go.
+- Fetching goes through `fetch_with_retries`; Playwright is only for browser `actions`
+  or screenshots. Respect robots.txt and the politeness delay in crawl paths.
+- Keep `openapi.yaml` in sync with any route or schema change.
+- Type hints on every new function; `from __future__ import annotations` where the file
+  already has it.

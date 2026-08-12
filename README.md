@@ -124,11 +124,19 @@ Known gaps (tracked in [docs/plan/](docs/plan/) and [ROADMAP.md](ROADMAP.md)):
 - No automated test suite yet (`npm run typecheck` and
   `python apps/firescrapling/backend/scripts/run_scraping_tests.py` are what exists).
 
+## Contributing
+
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — setup, workflow, smoke loop, debugging.
+- [AGENTS.md](AGENTS.md) — architecture map, conventions and gotchas (read by Cursor and
+  other AI assistants, and useful to humans for the same reasons).
+- [docs/plan/00-current-plan.md](docs/plan/00-current-plan.md) — what to build next.
+
 ## Repo layout
 
 ```
 apps/firescrapling/backend    FastAPI app + scraping engine
-apps/firescrapling/frontend   React + Vite + Tailwind + shadcn/ui dashboard
-docs/                         Mintlify docs and improvement plans
+apps/firescrapling/frontend   React + Vite + Tailwind + shadcn-style dashboard
+docs/                         Mintlify docs, development guide, improvement plans
+.cursor/rules/                Project conventions loaded by Cursor
 docker-compose.yml            backend + nginx-served frontend
 ```

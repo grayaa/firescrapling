@@ -31,4 +31,8 @@ apps/firescrapling/screenshots/
 .DS_Store
 Thumbs.db
 .idea/
-.vscode/
+
+# Editor config: share the project-level bits, ignore personal state
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
