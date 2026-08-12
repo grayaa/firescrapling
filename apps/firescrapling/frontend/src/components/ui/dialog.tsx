@@ -41,9 +41,23 @@ function Dialog({
 function DialogTrigger({
   children,
   className,
+  asChild,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) {
   const { onOpenChange } = useDialog();
+  // asChild: clone the single child and attach the open handler, so callers can
+  // trigger with their own <Button> without nesting a button inside a button.
+  if (asChild && React.isValidElement(children)) {
+    const child = children as React.ReactElement<{
+      onClick?: React.MouseEventHandler;
+    }>;
+    return React.cloneElement(child, {
+      onClick: (e: React.MouseEvent) => {
+        child.props.onClick?.(e);
+        onOpenChange(true);
+      },
+    });
+  }
   return (
     <button
       className={className}

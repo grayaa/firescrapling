@@ -411,6 +411,15 @@ def keys_delete(key_id: str, user_id: str = Depends(get_session_user)) -> Dict[s
     return {"success": True}
 
 
+@app.get("/v1/usage/summary")
+def usage_summary(
+    user_id: str = Depends(get_session_user),
+    days: int = Query(30, ge=1, le=365),
+) -> Dict[str, Any]:
+    """Dashboard aggregates for the signed-in account."""
+    return core.get_usage_summary(user_id, days)
+
+
 @app.post("/v1/scrape")
 def scrape(
     req: ScrapeRequest,

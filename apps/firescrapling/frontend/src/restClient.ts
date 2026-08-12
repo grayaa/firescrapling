@@ -2,6 +2,7 @@
  * REST client for FireScrapling FastAPI (same-origin via nginx in Docker, or VITE_API_BASE_URL in dev).
  */
 const STORAGE_KEY = "firescrapling_api_key";
+const SESSION_KEY = "firescrapling_session";
 
 export function getApiKey(): string {
   try {
@@ -17,6 +18,31 @@ export function setApiKey(key: string): void {
       localStorage.setItem(STORAGE_KEY, key.trim());
     } else {
       localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Session tokens (from /v1/auth/login) and API keys are different credentials:
+ * sessions authorize account routes like /v1/keys, API keys authorize
+ * /v1/scrape|crawl|map. They are stored — and sent — separately.
+ */
+export function getSessionToken(): string {
+  try {
+    return localStorage.getItem(SESSION_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setSessionToken(token: string): void {
+  try {
+    if (token.trim()) {
+      localStorage.setItem(SESSION_KEY, token.trim());
+    } else {
+      localStorage.removeItem(SESSION_KEY);
     }
   } catch {
     /* ignore */
@@ -63,18 +89,20 @@ function parseErrorMessage(data: unknown): string {
   return typeof data === "string" ? data : "Request failed";
 }
 
+export type AuthMode = "key" | "session" | "none";
+
 export async function apiFetch<T = unknown>(
   path: string,
-  init: RequestInit & { jsonBody?: unknown } = {},
+  init: RequestInit & { jsonBody?: unknown; auth?: AuthMode } = {},
 ): Promise<T> {
-  const { jsonBody, headers: hdrs, ...rest } = init;
+  const { jsonBody, headers: hdrs, auth = "key", ...rest } = init;
   const headers = new Headers(hdrs);
   if (jsonBody !== undefined) {
     headers.set("Content-Type", "application/json");
   }
-  const key = getApiKey();
-  if (key) {
-    headers.set("Authorization", `Bearer ${key}`);
+  const credential = auth === "session" ? getSessionToken() : auth === "key" ? getApiKey() : "";
+  if (credential) {
+    headers.set("Authorization", `Bearer ${credential}`);
   }
 
   const res = await fetch(joinUrl(path), {
@@ -106,7 +134,106 @@ export async function apiFetch<T = unknown>(
 }
 
 export async function getHealthReady(): Promise<{ status: string; database?: string }> {
-  return apiFetch("/health/ready");
+  return apiFetch("/health/ready", { auth: "none" });
+}
+
+// --- Accounts & sessions ---
+
+export type ApiUser = {
+  id: string;
+  email: string;
+  full_name?: string | null;
+};
+
+type LoginResponse = { success: boolean; user: ApiUser; session_token: string };
+
+export async function loginUser(email: string, password: string): Promise<ApiUser> {
+  const res = await apiFetch<LoginResponse>("/v1/auth/login", {
+    method: "POST",
+    auth: "none",
+    jsonBody: { email, password },
+  });
+  setSessionToken(res.session_token);
+  return res.user;
+}
+
+/** Register does not issue a session, so chain a login to land signed in. */
+export async function registerUser(
+  email: string,
+  password: string,
+  fullName?: string,
+): Promise<ApiUser> {
+  await apiFetch<{ success: boolean; user: ApiUser }>("/v1/auth/register", {
+    method: "POST",
+    auth: "none",
+    jsonBody: { email, password, full_name: fullName || null },
+  });
+  return loginUser(email, password);
+}
+
+export async function logoutUser(): Promise<void> {
+  try {
+    await apiFetch("/v1/auth/logout", { method: "POST", auth: "session" });
+  } catch {
+    // Server-side revocation is best-effort; the local token is dropped regardless.
+  }
+  setSessionToken("");
+}
+
+// --- API keys (session-authenticated) ---
+
+export type ApiKeySummary = {
+  id: string;
+  name: string | null;
+  key_preview: string;
+  created_at: string | null;
+  last_used: string | null;
+};
+
+export async function listApiKeys(): Promise<ApiKeySummary[]> {
+  const res = await apiFetch<{ keys: ApiKeySummary[] }>("/v1/keys", { auth: "session" });
+  return res.keys ?? [];
+}
+
+/** The full key value is returned exactly once, here. */
+export async function createApiKey(name: string): Promise<{ id: string; name: string; value: string }> {
+  const res = await apiFetch<{ key: { id: string; name: string; value: string } }>("/v1/keys", {
+    method: "POST",
+    auth: "session",
+    jsonBody: { name },
+  });
+  return res.key;
+}
+
+export async function deleteApiKey(keyId: string): Promise<void> {
+  await apiFetch(`/v1/keys/${encodeURIComponent(keyId)}`, { method: "DELETE", auth: "session" });
+}
+
+// --- Usage ---
+
+export type UsageSummary = {
+  window_days: number;
+  total_requests: number;
+  success_rate: number;
+  failed_requests: number;
+  avg_latency_ms: number;
+  p95_latency_ms: number;
+  pages_crawled: number;
+  active_keys: number;
+  daily: { date: string; success: number; failed: number }[];
+  by_endpoint: { endpoint: string; requests: number; success_rate: number }[];
+  recent_jobs: {
+    id: string;
+    type: string;
+    url: string;
+    status: string;
+    pages: number;
+    created_at: string | null;
+  }[];
+};
+
+export async function getUsageSummary(days = 30): Promise<UsageSummary> {
+  return apiFetch<UsageSummary>(`/v1/usage/summary?days=${days}`, { auth: "session" });
 }
 
 /** Public homepage playground — no API key; server enforces IP rate limits and URL safety. */

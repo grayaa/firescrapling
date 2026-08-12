@@ -5,7 +5,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Flame, LogIn, UserPlus, Mail, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
-import { rpcCall } from '../api';
+import { loginUser, registerUser } from '../restClient';
 
 export interface UserData {
   id: string;
@@ -32,14 +32,10 @@ export function AuthView({ onLogin }: AuthProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await rpcCall({ func: 'login_user', args: { email, password } });
-      if (res.success) {
-        onLogin(res.user);
-      } else {
-        setError(res.error || 'Login failed');
-      }
+      const user = await loginUser(email, password);
+      onLogin({ id: user.id, email: user.email, full_name: user.full_name ?? null });
     } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred');
+      setError(err?.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -50,15 +46,11 @@ export function AuthView({ onLogin }: AuthProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await rpcCall({ func: 'register_user', args: { email, password, full_name: fullName } });
-      if (res.success) {
-        // Auto-login after registration
-        onLogin(res.user);
-      } else {
-        setError(res.error || 'Registration failed');
-      }
+      // registerUser chains a login, so the user lands signed in.
+      const user = await registerUser(email, password, fullName);
+      onLogin({ id: user.id, email: user.email, full_name: user.full_name ?? null });
     } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred');
+      setError(err?.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }

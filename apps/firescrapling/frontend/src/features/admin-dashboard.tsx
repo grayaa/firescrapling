@@ -22,7 +22,8 @@ import {
   Terminal,
   Zap,
   BarChart3,
-  Filter
+  Filter,
+  RefreshCcw
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from '../components/ui/button';

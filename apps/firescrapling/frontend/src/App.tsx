@@ -43,12 +43,9 @@ import {
   Activity
 } from 'lucide-react';
 import { cn } from './lib/utils';
-import { rpcCall, streamCall, invalidateCache } from './api';
-import { HistorySidebar, Job, StatusIndicator, JobActivityLog, ActivityLog } from './features/dashboard';
-import { ResultsView, ScrapeResult } from './features/results';
+import { getSessionToken, logoutUser } from './restClient';
 import { ApiDocsView } from './features/docs';
 import { AuthView, UserData } from './features/auth';
-import { UserDashboard } from './features/dashboard-view';
 import { DashboardLayout } from './features/saas-layout';
 import { SaaSOverview } from './features/saas-overview';
 import { SaaSPlayground } from './features/saas-playground';
@@ -59,37 +56,33 @@ import { AdminDashboard } from './features/admin-dashboard';
 
 export default function App() {
   const [user, setUser] = useState<UserData | null>(() => {
-    const saved = localStorage.getItem('firescrapling_user');
-    return saved ? JSON.parse(saved) : null;
-  });
-  
-  const [activeView, setActiveView] = useState<string>('landing');
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    console.log('RENDER_SUCCESS');
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      // For demo purposes, any user with 'admin' in email is an admin
-      if (user.email.includes('admin')) {
-        setIsAdmin(true);
-      }
-      if (activeView === 'landing') {
-        setActiveView('overview');
-      }
+    // A cached user without a session token is stale — the token is what the API trusts.
+    if (!getSessionToken()) {
+      localStorage.removeItem('firescrapling_user');
+      return null;
     }
-  }, [user]);
+    const saved = localStorage.getItem('firescrapling_user');
+    try {
+      return saved ? (JSON.parse(saved) as UserData) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [activeView, setActiveView] = useState<string>('landing');
+  // Admin console is still backed by placeholder data; opt in explicitly.
+  const adminDemoEnabled = import.meta.env.VITE_ADMIN_DEMO === 'true';
 
   const handleLogin = (userData: UserData) => {
+    localStorage.setItem('firescrapling_user', JSON.stringify(userData));
     setUser(userData);
     setActiveView('overview');
   };
 
   const handleLogout = () => {
+    void logoutUser();
+    localStorage.removeItem('firescrapling_user');
     setUser(null);
-    setIsAdmin(false);
     setActiveView('landing');
   };
 
@@ -119,8 +112,6 @@ export default function App() {
         return <SaaSApiKeys />;
       case 'docs':
         return <ApiDocsView />;
-      case 'dashboard':
-        return <UserDashboard user={user!} />;
       case 'admin':
         return <AdminDashboard />;
       case 'webhooks':
@@ -201,16 +192,21 @@ export default function App() {
 
   // Standard User Dashboard Shell
   return (
-    <DashboardLayout activeView={activeView} onViewChange={setActiveView}>
+    <DashboardLayout
+      activeView={activeView}
+      onViewChange={setActiveView}
+      onLogout={handleLogout}
+      userEmail={user?.email}
+    >
       <div className="dark relative">
-        {isAdmin && (
+        {adminDemoEnabled && (
           <div className="absolute top-4 right-4 z-50">
             <Button 
               size="sm" 
               onClick={() => setActiveView('admin')}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-600/20"
             >
-              <ShieldCheck className="h-3 w-3 mr-2" /> Admin Panel
+              <ShieldCheck className="h-3 w-3 mr-2" /> Admin Panel (Demo)
             </Button>
           </div>
         )}

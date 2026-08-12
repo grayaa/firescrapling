@@ -34,20 +34,38 @@ import {
   DialogFooter
 } from '../components/ui/dialog';
 import { cn } from '../lib/utils';
+import { listApiKeys, createApiKey, deleteApiKey, ApiKeySummary } from '../restClient';
 
-// Mock API Keys
-const initialKeys = [
-  { id: "1", name: "Production", value: "sk_live_v2f9...8d2k", created: "2026-03-12", lastUsed: "2m ago" },
-  { id: "2", name: "Development", value: "sk_test_k9s2...r1m4", created: "2026-04-05", lastUsed: "1h ago" },
-  { id: "3", name: "Analytics Dashboard", value: "sk_live_m7v3...j1p9", created: "2026-04-10", lastUsed: "Never" },
-];
+function formatTimestamp(ts: string | null): string {
+  if (!ts) return 'Never';
+  const d = new Date(ts.includes('T') ? ts : `${ts.replace(' ', 'T')}Z`);
+  return Number.isNaN(d.getTime()) ? ts : d.toLocaleDateString();
+}
 
 export function SaaSApiKeys() {
-  const [keys, setKeys] = React.useState(initialKeys);
+  const [keys, setKeys] = React.useState<ApiKeySummary[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const [newKeyName, setNewKeyName] = React.useState('');
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [generatedKey, setGeneratedKey] = React.useState<string | null>(null);
+
+  const refresh = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      setKeys(await listApiKeys());
+      setError(null);
+    } catch (err: any) {
+      setError(err?.message || 'Could not load API keys');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const copyKey = (id: string, val: string) => {
     navigator.clipboard.writeText(val);
@@ -55,22 +73,29 @@ export function SaaSApiKeys() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleGenerate = () => {
-    const newKey = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: newKeyName || "Untitled Key",
-      value: "sk_live_" + Math.random().toString(36).substr(2, 12),
-      created: new Date().toISOString().split('T')[0],
-      lastUsed: "Never"
-    };
-    setGeneratedKey(newKey.value);
-    setKeys([newKey, ...keys]);
-    setIsModalOpen(false);
-    setNewKeyName('');
+  const handleGenerate = async () => {
+    try {
+      // The server returns the full secret exactly once — show it, then refetch masked.
+      const created = await createApiKey(newKeyName.trim() || 'Untitled Key');
+      setGeneratedKey(created.value);
+      setIsModalOpen(false);
+      setNewKeyName('');
+      await refresh();
+    } catch (err: any) {
+      setError(err?.message || 'Could not create the key');
+      setIsModalOpen(false);
+    }
   };
 
-  const deleteKey = (id: string) => {
+  const deleteKey = async (id: string) => {
+    const previous = keys;
     setKeys(keys.filter(k => k.id !== id));
+    try {
+      await deleteApiKey(id);
+    } catch (err: any) {
+      setKeys(previous);
+      setError(err?.message || 'Could not revoke the key');
+    }
   };
 
   return (
@@ -114,6 +139,12 @@ export function SaaSApiKeys() {
       </div>
 
       <div className="grid grid-cols-1 gap-6">
+        {error && (
+          <div className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-4 flex items-center gap-3 text-rose-400">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <p className="text-[11px] font-bold uppercase tracking-widest">{error}</p>
+          </div>
+        )}
         {/* Security Warning */}
         <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-6 flex gap-4 items-start animate-in slide-in-from-top-4 duration-700">
            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
@@ -157,7 +188,13 @@ export function SaaSApiKeys() {
                       </TableRow>
                    </TableHeader>
                    <TableBody>
-                      {keys.length === 0 ? (
+                      {loading ? (
+                        <TableRow>
+                           <TableCell colSpan={5} className="py-20 text-center text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                              Loading keys…
+                           </TableCell>
+                        </TableRow>
+                      ) : keys.length === 0 ? (
                         <TableRow>
                            <TableCell colSpan={5} className="py-20 text-center space-y-4 opacity-50 grayscale transition-all hover:grayscale-0 hover:opacity-100">
                               <div className="p-4 rounded-full bg-zinc-950/50 border border-white/5 inline-block">
@@ -177,29 +214,22 @@ export function SaaSApiKeys() {
                                    <div className="h-8 w-8 rounded-lg bg-zinc-950/50 border border-white/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
                                       <Zap className="h-3.5 w-3.5 fill-current" />
                                    </div>
-                                   <span className="text-sm font-bold text-white uppercase tracking-tight">{key.name}</span>
+                                   <span className="text-sm font-bold text-white uppercase tracking-tight">{key.name || 'Untitled Key'}</span>
                                 </div>
                              </TableCell>
                              <TableCell>
                                 <div className="flex items-center gap-2">
-                                   <code className="text-xs font-mono text-zinc-400 bg-zinc-950/50 px-2 py-1 rounded border border-white/5">{key.value}</code>
-                                   <Button 
-                                     variant="ghost" 
-                                     size="icon" 
-                                     className="h-8 w-8 text-muted-foreground hover:text-white"
-                                     onClick={() => copyKey(key.id, key.value)}
-                                   >
-                                     {copiedId === key.id ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                                   </Button>
+                                   <code className="text-xs font-mono text-zinc-400 bg-zinc-950/50 px-2 py-1 rounded border border-white/5">{key.key_preview}</code>
+                                   <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Shown once at creation</span>
                                 </div>
                              </TableCell>
-                             <TableCell className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">{key.created}</TableCell>
+                             <TableCell className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">{formatTimestamp(key.created_at)}</TableCell>
                              <TableCell>
                                 <Badge variant="outline" className={cn(
                                    "text-[9px] font-black uppercase border-none px-1.5",
-                                   key.lastUsed === 'Never' ? "text-muted-foreground bg-zinc-950/50" : "text-emerald-500 bg-emerald-500/10"
+                                   key.last_used ? "text-emerald-500 bg-emerald-500/10" : "text-muted-foreground bg-zinc-950/50"
                                 )}>
-                                   {key.lastUsed}
+                                   {formatTimestamp(key.last_used)}
                                 </Badge>
                              </TableCell>
                              <TableCell className="px-6 text-right">

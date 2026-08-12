@@ -24,41 +24,100 @@ import {
   Activity,
   ArrowUpRight,
   ShieldCheck,
-  Webhook
+  Webhook,
+  History
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/ui/table';
 import { Button } from '../components/ui/button';
 import { cn } from '../lib/utils';
+import { getUsageSummary, UsageSummary } from '../restClient';
 
-// Mock Data
-const stats = [
-  { label: "Pages Crawled", value: "12,482", delta: "+18%", icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10" },
-  { label: "API Success Rate", value: "99.8%", delta: "Stable", icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-  { label: "Active Webhooks", value: "8", delta: "+2", icon: Webhook, color: "text-violet-500", bg: "bg-violet-500/10" },
-  { label: "Credits Remaining", value: "4,820", delta: "-420", icon: Zap, color: "text-amber-500", bg: "bg-amber-500/10" },
-];
+const WINDOW_DAYS = 30;
 
-const chartData = [
-  { name: '01 Apr', success: 420, failed: 12 },
-  { name: '05 Apr', success: 580, failed: 24 },
-  { name: '10 Apr', success: 490, failed: 8 },
-  { name: '15 Apr', success: 620, failed: 15 },
-  { name: '20 Apr', success: 750, failed: 32 },
-  { name: '25 Apr', success: 590, failed: 10 },
-  { name: '30 Apr', success: 810, failed: 18 },
-];
-
-const recentCrawls = [
-  { id: "job_9k2f1", url: "https://stripe.com/docs", status: "completed", pages: 142, time: "2m ago" },
-  { id: "job_4h1s8", url: "https://vercel.com/blog", status: "completed", pages: 84, time: "15m ago" },
-  { id: "job_3d9z2", url: "https://supabase.com/docs", status: "processing", pages: 32, time: "Just now" },
-  { id: "job_7r4x5", url: "https://nextjs.org/docs", status: "failed", pages: 0, time: "1h ago" },
-  { id: "job_1m8v3", url: "https://tailwindcss.com", status: "completed", pages: 215, time: "3h ago" },
-];
+function relativeTime(ts: string | null): string {
+  if (!ts) return '—';
+  const d = new Date(ts.includes('T') ? ts : `${ts.replace(' ', 'T')}Z`);
+  if (Number.isNaN(d.getTime())) return ts;
+  const secs = Math.max(0, (Date.now() - d.getTime()) / 1000);
+  if (secs < 60) return 'Just now';
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  return `${Math.floor(secs / 86400)}d ago`;
+}
 
 export function SaaSOverview() {
+  const [summary, setSummary] = React.useState<UsageSummary | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    getUsageSummary(WINDOW_DAYS)
+      .then((data) => {
+        if (!cancelled) setSummary(data);
+      })
+      .catch((err: any) => {
+        if (!cancelled) setError(err?.message || 'Could not load usage data');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const stats = [
+    {
+      label: "Pages Extracted",
+      value: (summary?.pages_crawled ?? 0).toLocaleString(),
+      delta: `${WINDOW_DAYS}d`,
+      icon: Globe,
+      color: "text-blue-500",
+      bg: "bg-blue-500/10",
+    },
+    {
+      label: "API Success Rate",
+      value: `${summary?.success_rate ?? 0}%`,
+      delta: `${summary?.failed_requests ?? 0} failed`,
+      icon: ShieldCheck,
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10",
+    },
+    {
+      label: "Total Requests",
+      value: (summary?.total_requests ?? 0).toLocaleString(),
+      delta: `${summary?.active_keys ?? 0} keys`,
+      icon: Activity,
+      color: "text-violet-500",
+      bg: "bg-violet-500/10",
+    },
+    {
+      label: "P95 Latency",
+      value: `${summary?.p95_latency_ms ?? 0} ms`,
+      delta: `avg ${summary?.avg_latency_ms ?? 0} ms`,
+      icon: Zap,
+      color: "text-amber-500",
+      bg: "bg-amber-500/10",
+    },
+  ];
+
+  const chartData = (summary?.daily ?? []).map((d) => ({
+    name: d.date?.slice(5) ?? '',
+    success: d.success,
+    failed: d.failed,
+  }));
+
+  const recentCrawls = (summary?.recent_jobs ?? []).map((j) => ({
+    id: j.id,
+    url: j.url,
+    status: j.status,
+    pages: j.pages,
+    time: relativeTime(j.created_at),
+  }));
+
   return (
     <div className="p-6 md:p-8 space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -75,6 +134,13 @@ export function SaaSOverview() {
            </Button>
         </div>
       </div>
+
+      {error && (
+        <div className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-4 flex items-center gap-3 text-rose-400">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <p className="text-[11px] font-bold uppercase tracking-widest">{error}</p>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
@@ -172,6 +238,11 @@ export function SaaSOverview() {
            </CardHeader>
            <CardContent className="p-0">
               <div className="divide-y divide-border/50">
+                {recentCrawls.length === 0 && (
+                  <div className="p-8 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    {loading ? 'Loading activity…' : 'No jobs yet — run one from the Playground'}
+                  </div>
+                )}
                 {recentCrawls.map(crawl => (
                   <div key={crawl.id} className="p-4 hover:bg-muted/20 transition-colors group">
                      <div className="flex items-center justify-between mb-2">
@@ -211,23 +282,47 @@ export function SaaSOverview() {
       <Card className="bg-card/40 border-border/50 backdrop-blur-md overflow-hidden">
         <CardHeader className="p-6 bg-muted/10 border-b border-border/50">
            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-bold uppercase tracking-widest">Global Crawl Map</CardTitle>
-              <Badge variant="secondary" className="text-[10px]">Real-time Status</Badge>
+              <CardTitle className="text-sm font-bold uppercase tracking-widest">Endpoint Breakdown</CardTitle>
+              <Badge variant="secondary" className="text-[10px]">Last {WINDOW_DAYS} days</Badge>
            </div>
         </CardHeader>
-        <CardContent className="p-12 text-center space-y-4 opacity-50 grayscale transition-all hover:grayscale-0 hover:opacity-100">
-           <div className="p-6 rounded-full bg-primary/5 border border-primary/10 inline-block">
-              <Globe className="h-12 w-12 text-primary animate-pulse" />
-           </div>
-           <div className="space-y-1">
-             <h3 className="text-lg font-heading font-black text-white">LIVE ENGINE ACTIVE</h3>
-             <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Active nodes in US-East-1, EU-West-1, and Tokyo</p>
-           </div>
+        <CardContent className="p-0">
+           <Table>
+              <TableHeader className="bg-muted/5">
+                 <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-[10px] uppercase font-black tracking-widest text-muted-foreground px-6">Endpoint</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Requests</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black tracking-widest text-muted-foreground text-right px-6">Success rate</TableHead>
+                 </TableRow>
+              </TableHeader>
+              <TableBody>
+                 {(summary?.by_endpoint ?? []).length === 0 ? (
+                   <TableRow>
+                      <TableCell colSpan={3} className="py-10 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                         {loading ? 'Loading…' : 'No API calls recorded yet'}
+                      </TableCell>
+                   </TableRow>
+                 ) : (
+                   (summary?.by_endpoint ?? []).map(row => (
+                     <TableRow key={row.endpoint} className="border-b border-border/10 hover:bg-muted/10">
+                        <TableCell className="px-6 font-mono text-xs text-primary">{row.endpoint}</TableCell>
+                        <TableCell className="text-xs font-bold text-white">{row.requests.toLocaleString()}</TableCell>
+                        <TableCell className="px-6 text-right">
+                           <Badge variant="outline" className={cn(
+                             "text-[9px] font-black uppercase border-none",
+                             row.success_rate >= 95 ? "text-emerald-500 bg-emerald-500/10" :
+                             row.success_rate >= 80 ? "text-amber-500 bg-amber-500/10" : "text-rose-500 bg-rose-500/10"
+                           )}>
+                             {row.success_rate}%
+                           </Badge>
+                        </TableCell>
+                     </TableRow>
+                   ))
+                 )}
+              </TableBody>
+           </Table>
         </CardContent>
       </Card>
     </div>
   );
 }
-
-// Re-using Lucide icon as component placeholder
-const History = Clock;

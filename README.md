@@ -112,11 +112,17 @@ All variables live in the root `.env` (see [.env.example](.env.example)).
 Production-ready: the extraction engine, the REST API, auth/keys, rate limiting,
 idempotency, webhooks, job streaming.
 
+Wired to real data: sign-up/login, API key lifecycle, the playground, and the Overview
+dashboard (`GET /v1/usage/summary`).
+
 Known gaps (tracked in [docs/plan/](docs/plan/) and [ROADMAP.md](ROADMAP.md)):
 
-- Parts of the dashboard (Overview, Admin, Webhooks, Usage) still render placeholder data.
+- Webhooks and Billing screens are still placeholders; the admin console renders demo data
+  and is hidden unless the frontend is built with `VITE_ADMIN_DEMO=true`.
 - Jobs run in in-process threads, not a durable queue; storage is SQLite.
 - No credits/billing layer yet.
+- No automated test suite yet (`npm run typecheck` and
+  `python apps/firescrapling/backend/scripts/run_scraping_tests.py` are what exists).
 
 ## Repo layout
 

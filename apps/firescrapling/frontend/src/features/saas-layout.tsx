@@ -51,10 +51,12 @@ const navItems: NavItem[] = [
 interface LayoutProps {
   activeView: string;
   onViewChange: (id: string) => void;
+  onLogout?: () => void;
+  userEmail?: string;
   children: React.ReactNode;
 }
 
-export function DashboardLayout({ activeView, onViewChange, children }: LayoutProps) {
+export function DashboardLayout({ activeView, onViewChange, onLogout, userEmail, children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
   const [isDark, setIsDark] = React.useState(true);
 
@@ -149,11 +151,11 @@ export function DashboardLayout({ activeView, onViewChange, children }: LayoutPr
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 hover:opacity-80 transition-opacity outline-none">
                   <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shadow-lg">
-                    JD
+                    {(userEmail || '?').slice(0, 2).toUpperCase()}
                   </div>
                   <div className="hidden sm:block text-left">
-                    <p className="text-xs font-bold leading-none">John Developer</p>
-                    <p className="text-[10px] text-muted-foreground">Pro Plan</p>
+                    <p className="text-xs font-bold leading-none">{userEmail || 'Signed in'}</p>
+                    <p className="text-[10px] text-muted-foreground">Free Plan</p>
                   </div>
                 </button>
               </DropdownMenuTrigger>
@@ -164,7 +166,7 @@ export function DashboardLayout({ activeView, onViewChange, children }: LayoutPr
                 <DropdownMenuItem><CreditCard className="mr-2 h-4 w-4" /> Billing</DropdownMenuItem>
                 <DropdownMenuItem><Settings className="mr-2 h-4 w-4" /> Settings</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-500"><LogOut className="mr-2 h-4 w-4" /> Logout</DropdownMenuItem>
+                <DropdownMenuItem className="text-red-500" onClick={onLogout}><LogOut className="mr-2 h-4 w-4" /> Logout</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

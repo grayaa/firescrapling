@@ -296,6 +296,131 @@ def get_api_usage(user_id: str, limit: int = 100) -> List[Dict]:
     return [dict(r) for r in rows]
 
 
+def get_usage_summary(user_id: str, days: int = 30) -> Dict[str, Any]:
+    """Aggregate api_usage + jobs for the dashboard overview (single user, last N days)."""
+    days = max(1, min(int(days), 365))
+    window = f"-{days} days"
+    conn = _get_db()
+    try:
+        totals = conn.execute(
+            """
+            SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN status_code < 400 THEN 1 ELSE 0 END) AS ok,
+                   AVG(response_time_ms) AS avg_ms
+            FROM api_usage
+            WHERE user_id = ? AND created_at >= datetime('now', ?)
+            """,
+            (user_id, window),
+        ).fetchone()
+        total = int(totals["total"] or 0)
+        ok = int(totals["ok"] or 0)
+
+        # p95 without window functions: offset into the sorted latency list.
+        p95 = 0
+        if total:
+            offset = max(0, int(total * 0.95) - 1)
+            row = conn.execute(
+                """
+                SELECT response_time_ms FROM api_usage
+                WHERE user_id = ? AND created_at >= datetime('now', ?)
+                ORDER BY response_time_ms LIMIT 1 OFFSET ?
+                """,
+                (user_id, window, offset),
+            ).fetchone()
+            p95 = int((row["response_time_ms"] if row else 0) or 0)
+
+        daily = [
+            {
+                "date": r["day"],
+                "success": int(r["success"] or 0),
+                "failed": int(r["failed"] or 0),
+            }
+            for r in conn.execute(
+                """
+                SELECT date(created_at) AS day,
+                       SUM(CASE WHEN status_code < 400 THEN 1 ELSE 0 END) AS success,
+                       SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) AS failed
+                FROM api_usage
+                WHERE user_id = ? AND created_at >= datetime('now', ?)
+                GROUP BY day ORDER BY day
+                """,
+                (user_id, window),
+            ).fetchall()
+        ]
+
+        by_endpoint = [
+            {
+                "endpoint": r["endpoint"],
+                "requests": int(r["requests"] or 0),
+                "success_rate": round(100.0 * int(r["ok"] or 0) / int(r["requests"]), 1)
+                if int(r["requests"] or 0)
+                else 0.0,
+            }
+            for r in conn.execute(
+                """
+                SELECT endpoint, COUNT(*) AS requests,
+                       SUM(CASE WHEN status_code < 400 THEN 1 ELSE 0 END) AS ok
+                FROM api_usage
+                WHERE user_id = ? AND created_at >= datetime('now', ?)
+                GROUP BY endpoint ORDER BY requests DESC
+                """,
+                (user_id, window),
+            ).fetchall()
+        ]
+
+        recent_jobs = [
+            {
+                "id": r["id"],
+                "type": r["type"],
+                "url": r["url"],
+                "status": r["status"],
+                "pages": int(r["pages"] or 0),
+                "created_at": r["created_at"],
+            }
+            for r in conn.execute(
+                """
+                SELECT j.id, j.type, j.url, j.status, j.created_at,
+                       (SELECT COUNT(*) FROM results WHERE job_id = j.id) AS pages
+                FROM jobs j
+                WHERE j.user_id = ?
+                ORDER BY j.created_at DESC LIMIT 8
+                """,
+                (user_id,),
+            ).fetchall()
+        ]
+
+        pages_crawled = int(
+            conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM results r
+                JOIN jobs j ON r.job_id = j.id
+                WHERE j.user_id = ? AND r.created_at >= datetime('now', ?)
+                """,
+                (user_id, window),
+            ).fetchone()["c"]
+            or 0
+        )
+        active_keys = int(
+            conn.execute("SELECT COUNT(*) AS c FROM api_keys WHERE user_id = ?", (user_id,)).fetchone()["c"] or 0
+        )
+
+        return {
+            "window_days": days,
+            "total_requests": total,
+            "failed_requests": total - ok,
+            "success_rate": round(100.0 * ok / total, 1) if total else 100.0,
+            "avg_latency_ms": int(totals["avg_ms"] or 0),
+            "p95_latency_ms": p95,
+            "pages_crawled": pages_crawled,
+            "active_keys": active_keys,
+            "daily": daily,
+            "by_endpoint": by_endpoint,
+            "recent_jobs": recent_jobs,
+        }
+    finally:
+        conn.close()
+
+
 def mask_key_value(key_value: str) -> str:
     if not key_value or len(key_value) <= 10:
         return "fs_****"
