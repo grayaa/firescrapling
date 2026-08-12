@@ -9,8 +9,8 @@ import time
 import secrets
 from typing import Generator, List, Dict, Any, Optional, Set
 
+import bcrypt
 from dotenv import load_dotenv
-from passlib.context import CryptContext
 
 from webhook_delivery import deliver_webhook
 
@@ -44,8 +44,22 @@ DATA_DIR = os.path.join(_BACKEND_ROOT, "data/db")
 CACHE_DIR = os.path.join(_BACKEND_ROOT, "data/cache")
 DB_PATH = os.path.join(DATA_DIR, "firescrapling.db")
 
-# Security
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Security. bcrypt is used directly: passlib 1.7.4 cannot drive bcrypt >= 4.1
+# (it probes the removed bcrypt.__about__ and then fails every hash call).
+# Hashes stay standard $2b$, so credentials created under passlib still verify.
+_BCRYPT_MAX_BYTES = 72  # bcrypt ignores anything past this
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8")[:_BCRYPT_MAX_BYTES], bcrypt.gensalt()).decode("ascii")
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(password.encode("utf-8")[:_BCRYPT_MAX_BYTES], hashed.encode("utf-8"))
+    except (ValueError, TypeError):
+        return False
 
 # Ensure directories exist
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -56,7 +70,11 @@ def _get_db():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
-    
+    # Job threads and request handlers each hold their own connection; wait for a
+    # writer to finish rather than failing immediately with "database is locked".
+    conn.execute("PRAGMA busy_timeout=10000")
+
+
     # Tables
     conn.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -218,7 +236,7 @@ def register_user(email: str, password: str, full_name: str = None) -> Dict:
     conn = _get_db()
     try:
         user_id = str(uuid.uuid4())
-        hashed_pw = pwd_context.hash(password)
+        hashed_pw = hash_password(password)
         conn.execute(
             "INSERT INTO users (id, email, hashed_password, full_name) VALUES (?, ?, ?, ?)",
             (user_id, email.lower(), hashed_pw, full_name)
@@ -235,7 +253,7 @@ def login_user(email: str, password: str) -> Dict:
     user = conn.execute("SELECT * FROM users WHERE email = ?", (email.lower(),)).fetchone()
     conn.close()
     
-    if user and pwd_context.verify(password, user["hashed_password"]):
+    if user and verify_password(password, user["hashed_password"]):
         return {
             "success": True, 
             "user": {"id": user["id"], "email": user["email"], "full_name": user["full_name"]}
@@ -769,9 +787,10 @@ def scrape_page_streaming(
             (job_id,),
         )
 
-        record_api_usage(user_id, key_id, usage_endpoint, http_status, int((time.time() - start_time) * 1000))
-
+        # Commit before touching the DB through any other connection: SQLite allows a
+        # single writer, and record_api_usage/_notify_job_webhook open their own.
         conn.commit()
+        record_api_usage(user_id, key_id, usage_endpoint, http_status, int((time.time() - start_time) * 1000))
         _notify_job_webhook(job_id, "scrape.completed", {"url": final_url, "title": title})
         yield {
             "type": "result",
@@ -884,8 +903,8 @@ def crawl_site_streaming(
                     "UPDATE jobs SET status='completed', finished_at=CURRENT_TIMESTAMP, progress=100 WHERE id=?",
                     (job_id,),
                 )
-                record_api_usage(user_id, key_id, usage_endpoint, 200, int((time.time() - start_time) * 1000))
                 conn.commit()
+                record_api_usage(user_id, key_id, usage_endpoint, 200, int((time.time() - start_time) * 1000))
                 _notify_job_webhook(
                     job_id,
                     "crawl.completed",
