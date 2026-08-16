@@ -3,7 +3,7 @@
 Billing endpoints and plan gating are active only when **`HOSTED_MODE=true`**.
 Self-host defaults keep billing **404** (`code: billing_disabled`).
 
-See [hosted.md](./hosted.md) and [decision-gate.md](./decision-gate.md).
+See [hosted.md](./hosted.md).
 
 ## Plans (when hosted)
 

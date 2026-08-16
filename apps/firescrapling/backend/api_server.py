@@ -40,14 +40,11 @@ _PLAYGROUND_PREVIEW_CHARS = int(os.environ.get("PLAYGROUND_RESULT_PREVIEW_CHARS"
 async def _lifespan(application: FastAPI):  # noqa: ARG001
     log_level = os.environ.get("LOG_LEVEL", "INFO")
     core.configure_logging(log_level)
-    try:
-        from preflight import run_preflight
+    from preflight import run_preflight
 
-        run_preflight()
-    except Exception:
-        import logging
-
-        logging.getLogger(__name__).exception("preflight skipped")
+    # Preflight never raises — it reports pass/fail in the INFO block.
+    # Do not wrap in try/except: that would hide a real bug in preflight itself.
+    run_preflight()
     core.init_db()
     try:
         from job_queue import recover_orphaned_jobs

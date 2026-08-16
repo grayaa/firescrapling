@@ -24,46 +24,75 @@ See [docs/fetch-savings.md](docs/fetch-savings.md).
 
 ## Quickstart
 
+Requires Docker and curl. No provider API key is needed for the first scrape
+(local fetch of `example.com`).
+
 ```bash
-git clone https://github.com/firescrapling/firescrapling.git
+git clone https://github.com/grayaa/firescrapling.git
 cd firescrapling
 cp .env.example .env
-# Enable BYOK (product thesis) — generate a Fernet key and write it into .env:
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-# Then set in .env:
-#   BYOK_ENABLED=true
-#   CREDENTIAL_ENCRYPTION_KEY=<paste key>
-docker compose up --build
+docker compose up --build -d
 ```
 
-- Dashboard: http://localhost:8080  
-- API: http://localhost:8000 (`/docs` for Swagger)
-
-Create the first account in the UI (registration closes after that unless
-`ALLOW_REGISTRATION=true`) → API Keys → then:
+Wait until the API is healthy:
 
 ```bash
-curl -X POST http://localhost:8000/v1/scrape \
-  -H "Authorization: Bearer fs_YOUR_KEY" \
+# Linux/macOS
+until curl -sf http://localhost:8000/health; do sleep 2; done
+
+# Windows PowerShell
+# while (-not (curl.exe -sf http://localhost:8000/health)) { Start-Sleep 2 }
+```
+
+Create the first account, an API key, and scrape:
+
+```bash
+curl -s -X POST http://localhost:8000/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"ops@example.com","password":"ChangeMe99!"}'
+
+TOKEN=$(curl -s -X POST http://localhost:8000/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"ops@example.com","password":"ChangeMe99!"}' \
+  | python -c "import sys,json; print(json.load(sys.stdin)['session_token'])")
+
+API_KEY=$(curl -s -X POST http://localhost:8000/v1/keys \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"local"}' \
+  | python -c "import sys,json; print(json.load(sys.stdin)['key']['value'])")
+
+curl -s -X POST http://localhost:8000/v1/scrape \
+  -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"url":"https://example.com","formats":["markdown"],"onlyMainContent":true}'
 ```
 
+If you do not have Python locally, open http://localhost:8080, create the first
+account in the UI, create an API key under **API Keys**, then run only the final
+`curl` scrape with `fs_…` substituted.
+
+- Dashboard: http://localhost:8080  
+- API: http://localhost:8000 (`/docs` for Swagger)
+
 Defaults: `HOSTED_MODE=false`, `PLAYGROUND_ENABLED=false`, `ALLOW_REGISTRATION=false`
-(playground is opt-in; it burns *your* provider credits if enabled).
+(registration closes after the first account; playground is opt-in).
 
 ## BYOK
 
-1. Generate an encryption key (also shown in the quickstart above):
+Optional — attach your Scrape.do / Scrapfly key so paid fetches use your meter.
+
+1. Generate an encryption key (needs `cryptography`, or use any Fernet key):
    ```bash
-   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   docker run --rm python:3.11-slim bash -c "pip install -q cryptography && python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
    ```
 2. Set in `.env`:
    ```
    BYOK_ENABLED=true
    CREDENTIAL_ENCRYPTION_KEY=<that key>
    ```
-3. Dashboard → **Providers** → add Scrape.do or Scrapfly token (encrypted at rest).
+3. `docker compose up -d --force-recreate backend worker`
+4. Dashboard → **Providers** → add Scrape.do or Scrapfly token (encrypted at rest).
 
 Without BYOK, platform env keys (`SCRAPE_API_KEY` / `SCRAPFLY_API_KEY`) work when
 `MANAGED_FETCH_ENABLED=true` (self-host: no plan gating; plan gating only when
@@ -80,6 +109,8 @@ Without BYOK, platform env keys (`SCRAPE_API_KEY` / `SCRAPFLY_API_KEY`) work whe
 | `CREDENTIAL_ENCRYPTION_KEY` | — | Required if BYOK on |
 | `SCRAPE_API_KEY` / `SCRAPFLY_API_KEY` | — | Platform fetch |
 | `FETCH_ESCALATE` | `true` | Cheap-first ladder |
+| `LOG_LEVEL` | `INFO` | App / uvicorn logs |
+| `SCRAPE_CACHE_TTL` | `3600` | Local HTML cache (seconds) |
 | `REDIS_URL` | `redis://redis:6379/0` | RQ workers |
 | `ADMIN_SECRET` | — | `/v1/admin/*` |
 
@@ -116,15 +147,14 @@ interface, not the headline feature. See [docs/custom-extractors.md](docs/custom
 
 ## Hosted version?
 
-There is no hosted SaaS tier yet. If you want one, +1 the GitHub Discussion (linked from
-[docs/hosted.md](docs/hosted.md)). We track demand in
-[docs/decision-gate.md](docs/decision-gate.md).
+There is no hosted SaaS tier yet. If you want one, +1 or comment on the
+[GitHub Discussions](https://github.com/grayaa/firescrapling/discussions) (see also
+[docs/hosted.md](docs/hosted.md)).
 
 ## Contributing
 
 - Backend tests: `cd apps/firescrapling/backend && pip install -r requirements-dev.txt && pytest -q`
 - Frontend: `cd apps/firescrapling/frontend && npm run typecheck`
-- Roadmap: `docs/plan/` (active: BYOK pivot + OSS surface)
 
 ## Licence
 

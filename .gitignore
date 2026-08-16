@@ -36,3 +36,7 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# --- Local-only strategy docs (not part of the public docs site) ---
+docs/plan/
+docs/decision-gate.md

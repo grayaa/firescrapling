@@ -1,4 +1,8 @@
-"""Startup preflight — one INFO block so self-hosters see config failures immediately."""
+"""Startup preflight — one INFO block so self-hosters see config failures immediately.
+
+This function must never raise: every check is best-effort and reported in the block.
+Callers (api_server lifespan) invoke it without a swallow so a true bug surfaces.
+"""
 from __future__ import annotations
 
 import logging
@@ -12,11 +16,24 @@ _GEN_KEY = (
 
 
 def run_preflight() -> None:
+    """Log a boxed config summary. Never raises."""
+    lines: List[str] = ["======== FireScrapling preflight ========"]
+    try:
+        _append_checks(lines)
+    except Exception as e:
+        lines.append(f"  !! unexpected: {type(e).__name__}: {e}")
+    lines.append("========================================")
+    try:
+        logger.info("\n".join(lines))
+    except Exception:
+        # Logging subsystem broken — still do not raise into lifespan.
+        pass
+
+
+def _append_checks(lines: List[str]) -> None:
     from settings import get_settings
 
     settings = get_settings()
-    lines: List[str] = []
-    lines.append("======== FireScrapling preflight ========")
     lines.append(f"  hosted_mode:     {settings.hosted_mode}")
     lines.append(f"  allow_registration: {settings.allow_registration}")
     lines.append(f"  byok_enabled:    {settings.byok_enabled}")
@@ -25,13 +42,17 @@ def run_preflight() -> None:
     lines.append(f"  fetch_escalate:  {settings.fetch_escalate}")
     lines.append(f"  scrapedo:        {settings.scrapedo_configured}")
     lines.append(f"  scrapfly:        {settings.scrapfly_configured}")
+    lines.append(
+        f"  admin_secret:    {'configured' if settings.admin_configured else 'MISSING'}"
+    )
 
-    # Playground
-    from api_auth import playground_enabled
+    try:
+        from api_auth import playground_enabled
 
-    lines.append(f"  playground:      {playground_enabled()}")
+        lines.append(f"  playground:      {playground_enabled()}")
+    except Exception as e:
+        lines.append(f"  playground:      FAIL ({type(e).__name__})")
 
-    # Encryption
     has_key = bool(settings.credential_encryption_keys)
     lines.append(f"  encryption_key:  {'present' if has_key else 'MISSING'}")
     if settings.byok_enabled and not has_key:
@@ -40,7 +61,6 @@ def run_preflight() -> None:
     elif not has_key:
         lines.append(f"  (optional for BYOK later) Generate: {_GEN_KEY}")
 
-    # DB
     try:
         from db import _get_db
 
@@ -51,7 +71,6 @@ def run_preflight() -> None:
     except Exception as e:
         lines.append(f"  database:        FAIL ({type(e).__name__})")
 
-    # Redis
     if settings.queue_enabled:
         try:
             import redis
@@ -60,9 +79,8 @@ def run_preflight() -> None:
             r.ping()
             lines.append(f"  redis:           ok ({settings.redis_url})")
         except Exception as e:
-            lines.append(f"  redis:           unreachable ({type(e).__name__}) — jobs fall back to threads")
+            lines.append(
+                f"  redis:           unreachable ({type(e).__name__}) — jobs fall back to threads"
+            )
     else:
         lines.append("  redis:           skipped (QUEUE_ENABLED=false)")
-
-    lines.append("========================================")
-    logger.info("\n".join(lines))

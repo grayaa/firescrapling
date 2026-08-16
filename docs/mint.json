@@ -55,8 +55,7 @@
         "custom-extractors",
         "mcp",
         "hosted",
-        "billing",
-        "decision-gate"
+        "billing"
       ]
     },
     {

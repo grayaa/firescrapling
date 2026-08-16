@@ -32,5 +32,6 @@ Read `AGENTS.md` at the repo root for the full map. Key invariants:
   self-hosted deployment depend on a plan check.
 
 Verification: `npm run typecheck` in the frontend before any commit, and
-`docker compose up --build` for anything touching request flow. `docs/plan/` holds the
-triaged roadmap — check it before proposing architecture changes.
+`docker compose up --build` for anything touching request flow. Internal roadmap
+notes under `docs/plan/` are local-only (gitignored) — check them before proposing
+architecture changes.

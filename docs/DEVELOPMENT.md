@@ -108,5 +108,5 @@ short version:
 
 ## What to build next
 
-`docs/plan/00-current-plan.md` is the active, triaged roadmap. Phase 1 (make the
-dashboard real) is done; Phase 2 (tests + CI) is the next unstarted work.
+Internal strategy notes under `docs/plan/` are local-only (gitignored). Public docs
+focus on self-host, providers, ladder, and the API.

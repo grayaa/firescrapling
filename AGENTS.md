@@ -105,9 +105,8 @@ python scripts/run_scraping_tests.py # fixture-server checks, no network needed
 
 ## Where the work is going
 
-`docs/plan/` holds the phased roadmap. **Active strategy:** `docs/plan/06-byok-pivot.md`
-(BYOK + cost-control; supersedes Phase 4/5 ordering in `00-current-plan.md`). Read it
-before proposing architecture changes.
+Internal roadmap docs live under `docs/plan/` (gitignored — local only). Prefer the
+BYOK + OSS-first strategy notes over older Phase 4/5 ordering when they conflict.
 
 BYOK: per-user Scrape.do/Scrapfly keys in `provider_credentials` (Fernet). Fetch identity
 is a `FetchContext` threaded through strategy/provider/engine. Queue jobs carry
