@@ -35,7 +35,8 @@ jobs:
 
       - name: Run pytest
         env:
-          API_ALLOW_PRIVATE_URLS: "1"
+          # Do not set API_ALLOW_PRIVATE_URLS here — SSRF tests assert the default
+          # closed guard. Tests that need localhost/fixture URLs monkeypatch it on.
           API_REQUIRE_AUTH: "true"
           PLAYGROUND_ENABLED: "true"
         run: pytest tests/ -v --tb=short

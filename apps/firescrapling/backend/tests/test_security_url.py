@@ -55,6 +55,12 @@ def test_non_string_blocked() -> None:
 # localhost / loopback
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _ssrf_closed_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Blocking tests must not inherit a CI/dev API_ALLOW_PRIVATE_URLS=1."""
+    monkeypatch.delenv("API_ALLOW_PRIVATE_URLS", raising=False)
+
+
 def test_localhost_blocked() -> None:
     _blocked("http://localhost/")
 

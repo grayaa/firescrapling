@@ -276,8 +276,9 @@ def test_rate_limit_429_when_exceeded(monkeypatch: pytest.MonkeyPatch, client) -
 # SSRF guard via API
 # ---------------------------------------------------------------------------
 
-def test_scrape_blocks_private_ip(client) -> None:
+def test_scrape_blocks_private_ip(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """Even with a valid API key the SSRF guard must reject private IPs."""
+    monkeypatch.delenv("API_ALLOW_PRIVATE_URLS", raising=False)
     _, api_key = _register_and_key(client, "ssrf@example.com", "SsrfPass1!")
     r = client.post(
         "/v1/scrape",

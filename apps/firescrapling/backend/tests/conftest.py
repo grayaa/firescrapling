@@ -68,6 +68,8 @@ def _no_live_providers(monkeypatch: pytest.MonkeyPatch):
     """No test may reach a paid provider unless it opts in explicitly."""
     for var in ("SCRAPFLY_API_KEY", "SCRAPE_API_KEY", "SCRAPE_DO_API_KEY"):
         monkeypatch.delenv(var, raising=False)
+    # SSRF stays closed by default; tests that need localhost/fixture URLs opt in.
+    monkeypatch.delenv("API_ALLOW_PRIVATE_URLS", raising=False)
     monkeypatch.setenv("FETCH_PROVIDER", "local")
     monkeypatch.setenv("FETCH_ESCALATE", "false")
     from settings import clear_settings_cache
