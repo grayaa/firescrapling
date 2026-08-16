@@ -38,6 +38,7 @@ services:
     build:
       context: ./apps/firescrapling/backend
       dockerfile: Dockerfile
+      target: runtime
     ports:
       - "8000:8000"
     volumes:
@@ -94,6 +95,7 @@ services:
     build:
       context: ./apps/firescrapling/backend
       dockerfile: Dockerfile
+      target: runtime
     command: ["rq", "worker", "firescrapling-jobs", "firescrapling-webhooks", "--url", "redis://redis:6379/0"]
     volumes:
       - backend-data:/app/data

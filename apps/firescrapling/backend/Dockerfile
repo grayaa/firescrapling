@@ -16,10 +16,12 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
-CMD ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8000"]
-
-# Dev / CI image — includes pytest without a manual pip install.
+# Dev / CI image — build with: docker build --target test …
 FROM base AS test
 COPY requirements-dev.txt .
 RUN pip install --no-cache-dir -r requirements-dev.txt
 CMD ["pytest", "-q"]
+
+# Default image (must be last stage so `docker compose build` runs the API).
+FROM base AS runtime
+CMD ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8000"]
