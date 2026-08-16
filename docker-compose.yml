@@ -2,6 +2,38 @@
 # substitution below (https://docs.docker.com/compose/environment-variables/set-environment-variables/)
 
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Optional Postgres — enable with: docker compose --profile postgres up
+  # Then set DATABASE_URL=postgresql+psycopg://firescrapling:firescrapling@postgres:5432/firescrapling
+  # Default remains sqlite (no profile required).
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-firescrapling}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-firescrapling}
+      POSTGRES_DB: ${POSTGRES_DB:-firescrapling}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-firescrapling} -d ${POSTGRES_DB:-firescrapling}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     build:
       context: ./apps/firescrapling/backend
@@ -10,21 +42,99 @@ services:
       - "8000:8000"
     volumes:
       - backend-data:/app/data
+      # Live code during local iteration (avoids stale image).
+      - ./apps/firescrapling/backend:/app
+    depends_on:
+      redis:
+        condition: service_healthy
     environment:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       API_REQUIRE_AUTH: ${API_REQUIRE_AUTH:-true}
       API_ALLOW_PRIVATE_URLS: ${API_ALLOW_PRIVATE_URLS:-false}
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
+      ADMIN_SECRET: ${ADMIN_SECRET:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
       OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-}
       OPENROUTER_HTTP_REFERER: ${OPENROUTER_HTTP_REFERER:-}
       OPENROUTER_APP_TITLE: ${OPENROUTER_APP_TITLE:-}
-      PLAYGROUND_ENABLED: ${PLAYGROUND_ENABLED:-true}
+      PLAYGROUND_ENABLED: ${PLAYGROUND_ENABLED:-false}
       PLAYGROUND_RATE_LIMIT_PER_MINUTE: ${PLAYGROUND_RATE_LIMIT_PER_MINUTE:-8}
       PLAYGROUND_MAP_MAX_LINKS: ${PLAYGROUND_MAP_MAX_LINKS:-40}
       PLAYGROUND_CRAWL_LIMIT: ${PLAYGROUND_CRAWL_LIMIT:-3}
       PLAYGROUND_RESULT_PREVIEW_CHARS: ${PLAYGROUND_RESULT_PREVIEW_CHARS:-12000}
+      HOSTED_MODE: ${HOSTED_MODE:-false}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QUEUE_ENABLED: ${QUEUE_ENABLED:-true}
+      FETCH_PROVIDER: ${FETCH_PROVIDER:-auto}
+      SCRAPFLY_API_KEY: ${SCRAPFLY_API_KEY:-}
+      SCRAPE_API_KEY: ${SCRAPE_API_KEY:-}
+      SCRAPFLY_PROXY_POOL: ${SCRAPFLY_PROXY_POOL:-public_datacenter_pool}
+      SCRAPFLY_COUNTRY: ${SCRAPFLY_COUNTRY:-}
+      SCRAPFLY_DEFAULT_RENDER_JS: ${SCRAPFLY_DEFAULT_RENDER_JS:-false}
+      SCRAPFLY_DEFAULT_ASP: ${SCRAPFLY_DEFAULT_ASP:-false}
+      FETCH_ESCALATE: ${FETCH_ESCALATE:-true}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      BYOK_ENABLED: ${BYOK_ENABLED:-false}
+      MANAGED_FETCH_ENABLED: ${MANAGED_FETCH_ENABLED:-true}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-}
+      # Leave unset for sqlite under /app/data; set for Postgres profile.
+      DATABASE_URL: ${DATABASE_URL:-}
+      CRAWL_GLOBAL_CONCURRENCY: ${CRAWL_GLOBAL_CONCURRENCY:-4}
+      CRAWL_PER_HOST_CONCURRENCY: ${CRAWL_PER_HOST_CONCURRENCY:-2}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
+      STRIPE_PRICE_TEAM: ${STRIPE_PRICE_TEAM:-}
+
+  worker:
+    build:
+      context: ./apps/firescrapling/backend
+      dockerfile: Dockerfile
+    command: ["rq", "worker", "firescrapling-jobs", "firescrapling-webhooks", "--url", "redis://redis:6379/0"]
+    volumes:
+      - backend-data:/app/data
+      - ./apps/firescrapling/backend:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QUEUE_ENABLED: "true"
+      FETCH_PROVIDER: ${FETCH_PROVIDER:-auto}
+      SCRAPFLY_API_KEY: ${SCRAPFLY_API_KEY:-}
+      SCRAPE_API_KEY: ${SCRAPE_API_KEY:-}
+      SCRAPFLY_PROXY_POOL: ${SCRAPFLY_PROXY_POOL:-public_datacenter_pool}
+      SCRAPFLY_COUNTRY: ${SCRAPFLY_COUNTRY:-}
+      SCRAPFLY_DEFAULT_RENDER_JS: ${SCRAPFLY_DEFAULT_RENDER_JS:-false}
+      SCRAPFLY_DEFAULT_ASP: ${SCRAPFLY_DEFAULT_ASP:-false}
+      FETCH_ESCALATE: ${FETCH_ESCALATE:-true}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-}
+      API_ALLOW_PRIVATE_URLS: ${API_ALLOW_PRIVATE_URLS:-false}
+      BYOK_ENABLED: ${BYOK_ENABLED:-false}
+      MANAGED_FETCH_ENABLED: ${MANAGED_FETCH_ENABLED:-true}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-}
+      DATABASE_URL: ${DATABASE_URL:-}
+      CRAWL_GLOBAL_CONCURRENCY: ${CRAWL_GLOBAL_CONCURRENCY:-4}
+      CRAWL_PER_HOST_CONCURRENCY: ${CRAWL_PER_HOST_CONCURRENCY:-2}
+
+  mcp:
+    profiles: ["mcp"]
+    build:
+      context: ./apps/firescrapling/mcp
+      dockerfile: Dockerfile
+    depends_on:
+      - backend
+    environment:
+      FIRESCRAPLING_BASE_URL: ${FIRESCRAPLING_BASE_URL:-http://backend:8000}
+      FIRESCRAPLING_API_KEY: ${FIRESCRAPLING_API_KEY:-}
+    stdin_open: true
+    tty: true
 
   frontend:
     build:
@@ -37,3 +147,5 @@ services:
 
 volumes:
   backend-data:
+  redis-data:
+  postgres-data:

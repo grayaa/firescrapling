@@ -1,0 +1,14 @@
+---
+description: Plan and roadmap discipline for FireScrapling
+globs: docs/plan/**/*
+alwaysApply: true
+---
+
+- Active strategy: `docs/plan/06-byok-pivot.md` (BYOK + cost-control). Prefer it over
+  Phase 4/5 ordering in `00-current-plan.md` when they conflict.
+- Do not grow `main.py` with new feature bulk — new logic goes in focused modules
+  (`provider_credentials.py`, `cost_model.py`, services after M3, etc.).
+- Never publish marketing claims (landing/pricing) until the backing milestone works.
+- Never put plaintext provider API keys in logs, API responses, RQ payloads, or errors.
+- Before proposing architecture changes, read `docs/plan/06-byok-pivot.md` and the
+  current execution plan.

@@ -16,13 +16,13 @@
   },
   "topbarLinks": [
     {
-      "name": "Support",
-      "url": "mailto:support@firescrapling.com"
+      "name": "GitHub",
+      "url": "https://github.com/firescrapling/firescrapling"
     }
   ],
   "topbarCtaButton": {
-    "name": "Get API Key",
-    "url": "https://dashboard.firescrapling.com"
+    "name": "Self-host",
+    "url": "/self-host"
   },
   "tabs": [
     {
@@ -31,11 +31,6 @@
     }
   ],
   "anchors": [
-    {
-      "name": "Community",
-      "icon": "discord",
-      "url": "https://discord.gg/firescrapling"
-    },
     {
       "name": "GitHub",
       "icon": "github",
@@ -47,7 +42,21 @@
       "group": "Getting Started",
       "pages": [
         "introduction",
+        "self-host",
+        "connect-provider",
+        "fetch-ladder",
+        "fetch-savings",
         "quickstart"
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        "custom-extractors",
+        "mcp",
+        "hosted",
+        "billing",
+        "decision-gate"
       ]
     },
     {
@@ -58,18 +67,9 @@
         "api-reference/endpoint/crawl",
         "api-reference/endpoint/map"
       ]
-    },
-    {
-      "group": "SDKs",
-      "pages": [
-        "sdks/python",
-        "sdks/node"
-      ]
     }
   ],
   "footerSocials": {
-    "x": "https://x.com/firescrapling",
-    "github": "https://github.com/firescrapling",
-    "linkedin": "https://www.linkedin.com/company/firescrapling"
+    "github": "https://github.com/firescrapling/firescrapling"
   }
 }

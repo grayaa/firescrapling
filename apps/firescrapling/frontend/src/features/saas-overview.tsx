@@ -32,7 +32,7 @@ import { Badge } from '../components/ui/badge';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/ui/table';
 import { Button } from '../components/ui/button';
 import { cn } from '../lib/utils';
-import { getUsageSummary, UsageSummary } from '../restClient';
+import { getUsageSummary, UsageSummary, getCapabilities, listApiKeys, PlatformCapabilities } from '../restClient';
 
 const WINDOW_DAYS = 30;
 
@@ -47,16 +47,26 @@ function relativeTime(ts: string | null): string {
   return `${Math.floor(secs / 86400)}d ago`;
 }
 
-export function SaaSOverview() {
+export function SaaSOverview({ onNavigate }: { onNavigate?: (view: string) => void }) {
   const [summary, setSummary] = React.useState<UsageSummary | null>(null);
+  const [caps, setCaps] = React.useState<PlatformCapabilities | null>(null);
+  const [keyCount, setKeyCount] = React.useState(0);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     let cancelled = false;
-    getUsageSummary(WINDOW_DAYS)
-      .then((data) => {
-        if (!cancelled) setSummary(data);
+    Promise.all([
+      getUsageSummary(WINDOW_DAYS),
+      getCapabilities(),
+      listApiKeys().catch(() => []),
+    ])
+      .then(([data, capabilities, keys]) => {
+        if (!cancelled) {
+          setSummary(data);
+          setCaps(capabilities);
+          setKeyCount(keys.length);
+        }
       })
       .catch((err: any) => {
         if (!cancelled) setError(err?.message || 'Could not load usage data');
@@ -118,22 +128,105 @@ export function SaaSOverview() {
     time: relativeTime(j.created_at),
   }));
 
+  const checklist = [
+    {
+      id: 'encryption',
+      label: 'Encryption key set',
+      ok: caps?.encryption_key_present === true,
+      hint: 'CREDENTIAL_ENCRYPTION_KEY',
+      view: 'settings',
+    },
+    {
+      id: 'byok',
+      label: 'BYOK enabled',
+      ok: caps?.byok === true,
+      hint: 'BYOK_ENABLED=true',
+      view: 'providers',
+    },
+    {
+      id: 'provider',
+      label: 'Provider configured (BYOK or env)',
+      ok:
+        caps?.credential_source === 'byok' ||
+        caps?.credential_source === 'platform' ||
+        Boolean(caps?.platform_env),
+      hint: 'Providers or SCRAPE_API_KEY',
+      view: 'providers',
+    },
+    {
+      id: 'redis',
+      label: 'Redis / queue reachable',
+      ok: caps?.queue === true,
+      hint: 'REDIS_URL',
+      view: 'settings',
+    },
+    {
+      id: 'admin',
+      label: 'Admin secret set',
+      ok: caps?.admin_configured === true,
+      hint: 'ADMIN_SECRET',
+      view: 'admin',
+    },
+    {
+      id: 'apikey',
+      label: 'First API key created',
+      ok: keyCount > 0,
+      hint: 'API Keys',
+      view: 'api-keys',
+    },
+  ];
+  const checklistIncomplete = checklist.some((c) => !c.ok);
+
   return (
     <div className="p-6 md:p-8 space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1">
           <h2 className="text-3xl font-heading font-black tracking-tight text-white uppercase">Overview</h2>
-          <p className="text-muted-foreground text-sm uppercase tracking-widest font-bold">Your scraping engine performance at a glance</p>
+          <p className="text-muted-foreground text-sm uppercase tracking-widest font-bold">
+            Instance usage and fetch health
+          </p>
         </div>
         <div className="flex gap-2">
            <Button variant="outline" className="border-border/50 bg-muted/20">
              <Clock className="h-4 w-4 mr-2" /> Last 30 Days
            </Button>
-           <Button className="bg-primary hover:bg-primary/90">
-             <Zap className="h-4 w-4 mr-2 fill-current" /> Upgrade Plan
-           </Button>
         </div>
       </div>
+
+      {checklistIncomplete && (
+        <Card className="bg-card/40 border-orange-500/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-black uppercase tracking-widest text-orange-400">
+              First-run checklist
+            </CardTitle>
+            <CardDescription>
+              Completes once each item passes — then this block disappears.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {checklist.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onNavigate?.(item.view)}
+                className="w-full flex items-center justify-between gap-3 rounded-lg border border-white/5 px-3 py-2 text-left hover:bg-white/5"
+              >
+                <span className="flex items-center gap-2 text-sm">
+                  {item.ok ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 text-amber-400" />
+                  )}
+                  <span className={item.ok ? 'text-muted-foreground' : 'text-white'}>{item.label}</span>
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  {item.hint}
+                </span>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {error && (
         <div className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-4 flex items-center gap-3 text-rose-400">

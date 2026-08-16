@@ -1,57 +1,26 @@
 ---
 title: Introduction
-description: "Turn any website into LLM-ready data."
+description: "Self-hostable cost-control scrape layer for Scrape.do / Scrapfly users."
 ---
 
-<img
-  className="block dark:hidden"
-  src="/images/hero-light.png"
-  alt="Hero Light"
-/>
-<img
-  className="hidden dark:block"
-  src="/images/hero-dark.png"
-  alt="Hero Dark"
-/>
+FireScrapling is an **open-source, self-hosted** orchestration layer for teams that
+already pay Scrape.do or Scrapfly. Bring your own key, escalate fetch tiers only when
+needed, and turn pages into LLM-ready Markdown.
 
-Welcome to FireScrapling. We provide a developer-first API to scrape, crawl, and extract data from the web in the cleanest format possible for LLMs.
+There is no hosted SaaS by default (`HOSTED_MODE=false`). See [Hosted version?](/hosted).
 
 ## Why FireScrapling?
 
-Traditional scrapers give you messy HTML that consumes too many tokens and confuses your AI. FireScrapling solves this by providing:
-
-*   **LLM-Ready Markdown**: High-quality markdown extraction optimized for RAG.
-*   **Stealth Engine**: Built-in bypass for Cloudflare, Akamai, and DataDome.
-*   **Structured Data**: Extract exactly what you need as JSON using AI-powered schemas.
-*   **Speed**: Sub-second latency for single-page extractions.
+* **Credit-aware ladder** — local → static → JS → ASP → residential; domain memory ~24h.
+* **BYOK** — your provider meter; keys encrypted at rest on your box.
+* **Estimated savings** — vs always-ASP; see [Understanding savings](/fetch-savings).
+* **Jobs, webhooks, MCP** — queue-backed scrape/crawl plus optional MCP tools.
 
 <CardGroup cols={2}>
-  <Card
-    title="Quickstart"
-    icon="bolt"
-    href="/quickstart"
-  >
-    Get your first page scraped in under 60 seconds.
+  <Card title="Self-host" icon="server" href="/self-host">
+    `docker compose up` and your first scrape.
   </Card>
-  <Card
-    title="API Reference"
-    icon="code"
-    href="/api-reference/endpoint/scrape"
-  >
-    Explore our comprehensive OpenAPI 3.1 specification.
+  <Card title="Fetch ladder" icon="stairs" href="/fetch-ladder">
+    How escalation and profiles work.
   </Card>
 </CardGroup>
-
-## Main Features
-
-<Steps>
-  <Step title="Single Page Scraping">
-    Convert any URL into clean Markdown or structured JSON.
-  </Step>
-  <Step title="Domain Crawling">
-    Map and crawl entire websites asynchronously with webhook support.
-  </Step>
-  <Step title="Browser Actions">
-    Perform clicks, scrolls, and waits before extracting content.
-  </Step>
-</Steps>

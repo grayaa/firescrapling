@@ -23,47 +23,64 @@ export function SaaSInternalPricing() {
 
   const plans = [
     {
-      name: "Hobby",
+      name: "Free",
       price: 0,
-      description: "Ideal for personal projects and small test crawls.",
-      features: ["500 pages / month", "Standard queue priority", "Community support", "Basic Markdown output"],
+      description: "BYOK orchestration — your Scrape.do/Scrapfly key pays for bytes.",
+      features: [
+        "Bring your own provider key",
+        "Escalation ladder + domain profiles",
+        "Estimated savings dashboard",
+        "1k pages / month soft cap",
+      ],
       cta: "Get Started",
       featured: false
     },
     {
       name: "Pro",
       price: isYearly ? 39 : 49,
-      description: "Optimized for scaling businesses and production RAG apps.",
-      features: ["50,000 pages / month", "Priority queue priority", "JS rendering included", "Email support", "Anti-bot bypass engine"],
+      description: "Flat workspace plan for production crawls and higher concurrency.",
+      features: [
+        "Everything in Free",
+        "Higher concurrency + pages/month",
+        "Optional managed fetch (platform key)",
+        "Webhooks + Redis queue",
+        "Email support",
+      ],
       cta: "Go Pro",
       featured: true
     },
     {
-      name: "Enterprise",
-      price: "Custom",
-      description: "Mission-critical infrastructure for large-scale operations.",
-      features: ["Unlimited pages", "Dedicated proxies", "24/7 Uptime SLA", "Custom webhooks", "Account Manager"],
-      cta: "Contact Sales",
+      name: "Team",
+      price: isYearly ? 99 : 129,
+      description: "Seats, managed mode, and room for media extractors / MCP.",
+      features: [
+        "Everything in Pro",
+        "Team seats",
+        "Managed fetch included",
+        "Priority queue",
+        "Media extract endpoints",
+      ],
+      cta: "Start Team",
       featured: false
     }
   ];
 
   const faqs = [
     {
-      q: "How do credits work?",
-      a: "1 credit equals 1 successful page extraction. Failed requests are never charged."
+      q: "Do you sell scrape credits?",
+      a: "No. Core pricing is flat per workspace. You bring your own Scrape.do or Scrapfly key (BYOK); their meter pays for bytes."
+    },
+    {
+      q: "What is managed fetch?",
+      a: "On Pro/Team we can fall back to a platform provider key when you have not attached BYOK credentials. Free plans are BYOK-first."
+    },
+    {
+      q: "How are savings calculated?",
+      a: "Estimated units versus always using ASP/anti-bot. See docs/fetch-savings.md — labeled estimated in the dashboard."
     },
     {
       q: "Can I cancel anytime?",
-      a: "Yes, you can cancel your subscription at any time from your dashboard settings."
-    },
-    {
-      q: "Do you support AI extraction?",
-      a: "Absolutely. Our engine is natively integrated with LLMs for structured JSON data."
-    },
-    {
-      q: "What is your uptime SLA?",
-      a: "Enterprise customers benefit from a 99.99% uptime guarantee for API services."
+      a: "Yes. Stripe subscriptions can be canceled from billing; BYOK keys remain under your control."
     }
   ];
 
@@ -73,8 +90,8 @@ export function SaaSInternalPricing() {
     <section className="py-24 container mx-auto px-6 space-y-16 animate-in fade-in duration-1000">
       <div className="text-center space-y-6">
         <div className="space-y-2">
-          <h2 className="text-4xl md:text-5xl font-heading font-black tracking-tight text-white uppercase">Choose Your Scale</h2>
-          <p className="text-muted-foreground text-sm uppercase tracking-widest font-bold">Transparent pricing for every stage of your AI roadmap</p>
+          <h2 className="text-4xl md:text-5xl font-heading font-black tracking-tight text-white uppercase">BYOK + flat plans</h2>
+          <p className="text-muted-foreground text-sm uppercase tracking-widest font-bold">Your provider key pays for bytes — we sell orchestration</p>
         </div>
         
         <div className="flex items-center justify-center gap-4">

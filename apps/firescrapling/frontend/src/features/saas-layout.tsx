@@ -13,11 +13,11 @@ import {
   Sun, 
   Bell, 
   User, 
-  CreditCard,
   LogOut,
   Search,
   Zap,
-  Flame
+  Flame,
+  ShieldCheck,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from '../components/ui/button';
@@ -41,11 +41,14 @@ export interface NavItem {
 
 const navItems: NavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'savings', label: 'Savings', icon: BarChart3 },
+  { id: 'providers', label: 'Providers', icon: Key },
   { id: 'api-keys', label: 'API Keys', icon: Key },
   { id: 'playground', label: 'Playground', icon: Terminal },
   { id: 'webhooks', label: 'Webhooks', icon: Webhook },
-  { id: 'usage', label: 'Usage & Billing', icon: BarChart3 },
+  { id: 'usage', label: 'Usage', icon: BarChart3 },
   { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'admin', label: 'Admin', icon: ShieldCheck },
 ];
 
 interface LayoutProps {
@@ -163,7 +166,12 @@ export function DashboardLayout({ activeView, onViewChange, onLogout, userEmail,
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem><User className="mr-2 h-4 w-4" /> Profile</DropdownMenuItem>
-                <DropdownMenuItem><CreditCard className="mr-2 h-4 w-4" /> Billing</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onViewChange('usage')}>
+                  <BarChart3 className="mr-2 h-4 w-4" /> Usage
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onViewChange('settings')}>
+                  <Settings className="mr-2 h-4 w-4" /> Settings
+                </DropdownMenuItem>
                 <DropdownMenuItem><Settings className="mr-2 h-4 w-4" /> Settings</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-red-500" onClick={onLogout}><LogOut className="mr-2 h-4 w-4" /> Logout</DropdownMenuItem>

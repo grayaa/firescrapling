@@ -4,22 +4,23 @@ globs: apps/firescrapling/backend/**/*.py
 alwaysApply: false
 ---
 
-- Routes go in `api_server.py`: validate input with a pydantic model, call into `core`
-  (`main.py`), shape the response. No scraping or SQL in the route body.
-- Auth is a dependency, never inline: `Depends(get_api_context)` for API-key routes,
-  `Depends(get_session_user)` for account routes (both in `api_auth.py`).
-- Call `_check_target_url(url)` (which wraps `validate_request_url`) before fetching any
-  user-supplied URL.
-- DB access uses `_get_db()` and parameterised SQL — never string-formatted values.
-  Commit before calling another helper that opens its own connection; SQLite permits one
-  writer at a time.
-- Record billable work with `record_api_usage(...)` after committing, passing the
-  endpoint path so `/v1/usage/summary` can aggregate it.
-- Long work belongs in the job generators (`scrape_page_streaming`,
-  `crawl_site_streaming`), which yield `{"type": "status"|"result"|"error"|"done"}`
-  events and persist logs/progress as they go.
-- Fetching goes through `fetch_with_retries`; Playwright is only for browser `actions`
-  or screenshots. Respect robots.txt and the politeness delay in crawl paths.
-- Keep `openapi.yaml` in sync with any route or schema change.
-- Type hints on every new function; `from __future__ import annotations` where the file
-  already has it.
+- Routes go in `api_server.py` (or `routers/`): validate with pydantic, call services /
+  helpers, shape the response. No scraping or SQL in the route body.
+- Do **not** grow `main.py` with new feature bulk — prefer focused modules
+  (`provider_credentials.py`, `fetch_context.py`, `cost_model.py`, …).
+- Auth is a dependency: `Depends(get_api_context)` for API-key routes,
+  `Depends(get_session_user)` for account routes (`api_auth.py`).
+- Call `_check_target_url(url)` / `validate_request_url` before any user-supplied fetch.
+- Fetch identity is a `FetchContext` (BYOK → platform → local). Never put plaintext
+  provider keys in logs, API responses, RQ payloads, or error envelopes. Queue jobs
+  carry `user_id` / `credential_id` only; workers call `build_fetch_context`.
+- DB access uses `_get_db()` and parameterised SQL. Commit before another helper that
+  opens its own connection (SQLite single writer).
+- Record billable work with `record_api_usage(...)` after committing.
+- Long work belongs in job generators yielding status/result/error/done events.
+- Fetching goes through `fetch_with_retries(..., ctx=)`; Playwright only for browser
+  `actions` or screenshots.
+- Keep `openapi.yaml` in sync with route/schema changes.
+- Never widen the escalation ladder's entry conditions without a test asserting the
+  modeled cost stays at or below the `sf_asp` baseline. The ladder is the product; a
+  regression there is a billing bug, not a performance bug.

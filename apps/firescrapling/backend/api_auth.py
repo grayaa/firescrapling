@@ -43,7 +43,8 @@ _rate_limiter = _SlidingWindow()
 
 
 def playground_enabled() -> bool:
-    return os.environ.get("PLAYGROUND_ENABLED", "true").strip().lower() not in ("0", "false", "no")
+    # Default off: unauthenticated playground burns the self-hoster's provider credits.
+    return os.environ.get("PLAYGROUND_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
 
 
 def playground_rate_limit_per_minute() -> int:
@@ -171,3 +172,43 @@ async def get_session_user(
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
     return user_id
+
+
+async def get_account_user_id(
+    authorization: Annotated[Optional[str], Header()] = None,
+    x_api_key: Annotated[Optional[str], Header(alias="X-API-Key")] = None,
+) -> str:
+    """Session token or API key — for account-scoped reads (usage/savings)."""
+    token = _extract_bearer_token(authorization) or (x_api_key.strip() if x_api_key else None)
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing credentials")
+    # API keys are fs_…; session tokens are opaque hex — try session first, then key.
+    user_id = core.resolve_session_token(token)
+    if user_id:
+        return user_id
+    resolved = core.resolve_api_key(token)
+    if resolved:
+        return resolved["user_id"]
+    raise HTTPException(status_code=401, detail="Invalid or expired credentials")
+
+
+async def get_admin_context(
+    authorization: Annotated[Optional[str], Header()] = None,
+) -> None:
+    """
+    Gate /v1/admin/* behind ADMIN_SECRET.
+    Returns None (access is binary). Raises 503 if the secret is unset so
+    unconfigured deployments fail closed.
+    """
+    secret = os.environ.get("ADMIN_SECRET", "").strip()
+    if not secret:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "admin_disabled", "message": "Admin API is not configured (ADMIN_SECRET unset)"},
+        )
+    token = _extract_bearer_token(authorization)
+    if not token or token != secret:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "unauthorized", "message": "Invalid or missing admin token"},
+        )

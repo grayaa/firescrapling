@@ -1,80 +1,39 @@
 ---
 title: "Quickstart"
-description: "Start scraping in under 60 seconds."
+description: "First scrape on a self-hosted instance."
 ---
 
-Follow these steps to integrate FireScrapling with your application.
+Prefer the full guide: [Self-host quickstart](/self-host).
 
-## 1. Get an API Key
-
-First, you'll need to create an account at the [FireScrapling Dashboard](https://dashboard.firescrapling.com) and generate an API key.
-
-<Info>Keep your API key secure. It acts as your authentication for all requests.</Info>
-
-## 2. Make your first `/scrape` request
-
-Using cURL, you can quickly test the API by scraping a URL and getting clean Markdown back.
+## 1. Run locally
 
 ```bash
-curl -X POST "https://api.firescrapling.com/v1/scrape" \
+cp .env.example .env
+docker compose up --build
+```
+
+Open http://localhost:8080 → register → create an API key (`fs_…`).
+
+## 2. Scrape
+
+```bash
+curl -X POST "http://localhost:8000/v1/scrape" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "url": "https://stripe.com/docs",
+    "url": "https://example.com",
     "formats": ["markdown"],
     "onlyMainContent": true
   }'
 ```
 
-## 3. Integrate with an LLM
-
-Here's a simple example of how to use FireScrapling with OpenAI to answer questions based on a website's content.
-
-```python
-import requests
-from openai import OpenAI
-
-# Initialize clients
-client = OpenAI(api_key="YOUR_OPENAI_KEY")
-firescrapling_key = "YOUR_FIRESCRAPLING_KEY"
-
-# 1. Scrape the content
-res = requests.post(
-    "https://api.firescrapling.com/v1/scrape",
-    headers={"Authorization": f"Bearer {firescrapling_key}"},
-    json={"url": "https://stripe.com/docs/api", "formats": ["markdown"]}
-)
-content = res.json()["data"]["markdown"]
-
-# 2. Feed it to the LLM
-response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[
-        {"role": "system", "content": "You are a helpful assistant. Use the provided context to answer questions."},
-        {"role": "user", "content": f"Context: {content}\n\nQuestion: How do I create a customer in Stripe?"}
-    ]
-)
-
-print(response.choices[0].message.content)
-```
-
-## Next Steps
-
-Now that you've got the basics down, check out our other features:
+## Next
 
 <CardGroup cols={2}>
-  <Card
-    title="Domain Crawling"
-    icon="spider"
-    href="/api-reference/endpoint/crawl"
-  >
-    Crawl an entire website and get results asynchronously.
+  <Card title="Connect provider" icon="key" href="/connect-provider">
+    Scrape.do / Scrapfly env or BYOK.
   </Card>
-  <Card
-    title="Browser Actions"
-    icon="mouse-pointer"
-    href="/api-reference/endpoint/scrape#actions"
-  >
-    Learn how to click, scroll, and wait before scraping.
+  <Card title="API Reference" icon="code" href="/api-reference/introduction">
+    scrape · crawl · map
   </Card>
 </CardGroup>

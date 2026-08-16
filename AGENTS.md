@@ -12,7 +12,7 @@ structured JSON, plus a React dashboard for accounts, API keys and usage.
 apps/firescrapling/backend    FastAPI + the scraping engine (Python 3.11)
 apps/firescrapling/frontend   React 18 + Vite + Tailwind + shadcn-style UI (TypeScript)
 docs/                         Mintlify docs and the phased improvement plans
-docker-compose.yml            backend :8000, nginx-served frontend :8080
+docker-compose.yml            redis, worker (RQ), backend :8000, frontend :8080
 ```
 
 ### Backend files, by responsibility
@@ -22,9 +22,17 @@ docker-compose.yml            backend :8000, nginx-served frontend :8080
 | `api_server.py` | All HTTP routes, request/response models, error envelope, CORS, request ids |
 | `api_auth.py` | FastAPI dependencies: API-key auth, session auth, rate limiting |
 | `main.py` | Business logic: accounts, keys, jobs, usage aggregation, job orchestration |
-| `scraping_engine.py` | Fetching, retries, markdown extraction, BFS crawl, robots, cache |
+| `settings.py` | Env-driven config: Scrapfly, Redis, fetch provider, queue flags |
+| `fetch_provider.py` | Pluggable fetch: Scrape.do, Scrapfly, or local scrapling |
+| `fetch_strategy.py` | Credit-aware escalate: classify → tier ladder → domain profile cache |
+| `job_queue.py` / `job_tasks.py` | Redis RQ enqueue + worker entrypoints (scrape/crawl/webhooks) |
+| `scraping_engine.py` | Fetching, retries, markdown extraction, concurrent BFS crawl, robots, cache |
+| `extractors/` + `media_extract.py` | Domain media extractors (manifest URLs only) |
+| `billing.py` | Flat plans + Stripe checkout/webhook stubs |
 | `security_url.py` | SSRF guard — validates every user-supplied target URL |
 | `webhook_delivery.py` | HMAC-signed webhook POSTs with retry/backoff |
+
+MCP (optional): `apps/firescrapling/mcp/` — FastMCP stdio tools over the HTTP API.
 
 `api_server.py` imports `main` as `core`. Routes stay thin: validate, delegate to
 `core`, shape the response.
@@ -83,15 +91,26 @@ python scripts/run_scraping_tests.py # fixture-server checks, no network needed
   `verify_password` in `main.py` call bcrypt directly.
 - **`npm run typecheck` catches real crashes**, not just type noise — missing icon
   imports in this codebase are `ReferenceError`s at render. Run it.
-- **Jobs run in daemon threads** (`spawn_scrape_thread` / `spawn_crawl_thread`). They do
-  not survive a restart, and there is no concurrency cap. Treat this as temporary.
-- The admin console (`features/admin-dashboard.tsx`) is still demo data, hidden unless
-  the frontend is built with `VITE_ADMIN_DEMO=true`. Don't cite its numbers as real.
+- **Jobs use Redis RQ** when `QUEUE_ENABLED` and Redis are available (`docker compose`
+  runs `redis` + `worker`). Otherwise they fall back to daemon threads.
+- **Paid fetch**: `SCRAPE_API_KEY` (Scrape.do, preferred in `auto`) or
+  `SCRAPFLY_API_KEY`. Defaults are cheap (`render_js`/`asp` off); `FETCH_ESCALATE`
+  probes local/static first and only enables JS/ASP/super/residential when needed.
+  Force full power per request with `renderJs` / `asp` / `proxyPool`. See
+  `GET /v1/capabilities`.
+- The admin console is gated by `ADMIN_SECRET` (Bearer token on `/v1/admin/*`). Set it in
+  `.env` / Compose; without it the admin API returns 503. The UI prompts for the secret.
 - `.env` lives at the repo root and is gitignored. `OPENROUTER_API_KEY` is only needed
   for schema-driven extraction.
 
 ## Where the work is going
 
-`docs/plan/` holds the phased roadmap; `docs/plan/00-current-plan.md` is the active one
-(tests + CI, then Postgres/Redis/worker queue, then billing, then engine features).
-Read it before proposing architecture changes — the known gaps are already triaged.
+`docs/plan/` holds the phased roadmap. **Active strategy:** `docs/plan/06-byok-pivot.md`
+(BYOK + cost-control; supersedes Phase 4/5 ordering in `00-current-plan.md`). Read it
+before proposing architecture changes.
+
+BYOK: per-user Scrape.do/Scrapfly keys in `provider_credentials` (Fernet). Fetch identity
+is a `FetchContext` threaded through strategy/provider/engine. Queue jobs carry
+`user_id` only — workers call `build_fetch_context`. Savings: `GET /v1/usage/fetch-savings`
+(estimated). See `docs/fetch-savings.md`.
+

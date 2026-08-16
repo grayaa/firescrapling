@@ -3,6 +3,7 @@
  */
 const STORAGE_KEY = "firescrapling_api_key";
 const SESSION_KEY = "firescrapling_session";
+const ADMIN_KEY = "firescrapling_admin_token";
 
 export function getApiKey(): string {
   try {
@@ -28,6 +29,7 @@ export function setApiKey(key: string): void {
  * Session tokens (from /v1/auth/login) and API keys are different credentials:
  * sessions authorize account routes like /v1/keys, API keys authorize
  * /v1/scrape|crawl|map. They are stored — and sent — separately.
+ * Admin tokens (ADMIN_SECRET) authorize /v1/admin/* only.
  */
 export function getSessionToken(): string {
   try {
@@ -43,6 +45,26 @@ export function setSessionToken(token: string): void {
       localStorage.setItem(SESSION_KEY, token.trim());
     } else {
       localStorage.removeItem(SESSION_KEY);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getAdminToken(): string {
+  try {
+    return localStorage.getItem(ADMIN_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setAdminToken(token: string): void {
+  try {
+    if (token.trim()) {
+      localStorage.setItem(ADMIN_KEY, token.trim());
+    } else {
+      localStorage.removeItem(ADMIN_KEY);
     }
   } catch {
     /* ignore */
@@ -89,7 +111,7 @@ function parseErrorMessage(data: unknown): string {
   return typeof data === "string" ? data : "Request failed";
 }
 
-export type AuthMode = "key" | "session" | "none";
+export type AuthMode = "key" | "session" | "admin" | "none";
 
 export async function apiFetch<T = unknown>(
   path: string,
@@ -100,7 +122,14 @@ export async function apiFetch<T = unknown>(
   if (jsonBody !== undefined) {
     headers.set("Content-Type", "application/json");
   }
-  const credential = auth === "session" ? getSessionToken() : auth === "key" ? getApiKey() : "";
+  const credential =
+    auth === "session"
+      ? getSessionToken()
+      : auth === "admin"
+        ? getAdminToken()
+        : auth === "key"
+          ? getApiKey()
+          : "";
   if (credential) {
     headers.set("Authorization", `Bearer ${credential}`);
   }
@@ -236,6 +265,111 @@ export async function getUsageSummary(days = 30): Promise<UsageSummary> {
   return apiFetch<UsageSummary>(`/v1/usage/summary?days=${days}`, { auth: "session" });
 }
 
+export type FetchSavingsSummary = {
+  estimated: boolean;
+  baseline_tier: string;
+  window_days: number;
+  events: number;
+  baseline_cost: number;
+  actual_cost: number;
+  saved_cost: number;
+  savings_pct: number;
+  by_domain: {
+    domain: string;
+    events: number;
+    baseline_cost: number;
+    actual_cost: number;
+    saved_cost: number;
+    savings_pct: number;
+  }[];
+};
+
+export async function getFetchSavings(days = 30): Promise<FetchSavingsSummary> {
+  return apiFetch<FetchSavingsSummary>(`/v1/usage/fetch-savings?days=${days}`, { auth: "session" });
+}
+
+// --- Platform capabilities (public) ---
+
+export type PlatformCapabilities = {
+  scrapfly: boolean;
+  scrapedo?: boolean;
+  fetch_provider: string;
+  fetch_escalate?: boolean;
+  js_render: boolean;
+  js_render_default: boolean;
+  anti_bot: boolean;
+  proxy_rotation: boolean;
+  queue: boolean;
+  webhooks: boolean;
+  markdown: boolean;
+  hosted?: boolean;
+  byok?: boolean;
+  managed_fetch?: boolean;
+  playground?: boolean;
+  registration_open?: boolean;
+  billing?: boolean;
+  extract_media?: boolean;
+  encryption_key_present?: boolean;
+  admin_configured?: boolean;
+  rate_limit_per_minute?: number;
+  domain_profile_ttl_seconds?: number;
+  database_backend?: string;
+  worker_concurrency?: number;
+  version?: string;
+  commit?: string;
+  credential_source?: string;
+  credential_provider?: string;
+  platform_env?: { provider: string; env_var: string } | null;
+  crawl_global_concurrency?: number;
+  crawl_per_host_concurrency?: number;
+};
+
+export async function getCapabilities(): Promise<PlatformCapabilities> {
+  return apiFetch<PlatformCapabilities>("/v1/capabilities", { auth: "none" });
+}
+
+// --- BYOK provider credentials (session) ---
+
+export type ProviderCredential = {
+  id: string;
+  provider: "scrapedo" | "scrapfly" | string;
+  label: string | null;
+  key_hint: string;
+  proxy_pool: string | null;
+  residential_pool: string | null;
+  country: string | null;
+  status: string;
+  created_at: string | null;
+  last_used_at: string | null;
+};
+
+export async function listProviders(): Promise<ProviderCredential[]> {
+  const res = await apiFetch<{ providers: ProviderCredential[] }>("/v1/providers", { auth: "session" });
+  return res.providers ?? [];
+}
+
+export async function createProvider(body: {
+  provider: "scrapedo" | "scrapfly";
+  api_key: string;
+  label?: string;
+  country?: string;
+}): Promise<ProviderCredential> {
+  const res = await apiFetch<{ provider: ProviderCredential }>("/v1/providers", {
+    method: "POST",
+    auth: "session",
+    jsonBody: body,
+  });
+  return res.provider;
+}
+
+export async function verifyProvider(id: string): Promise<{ success: boolean; status: string; message?: string }> {
+  return apiFetch(`/v1/providers/${encodeURIComponent(id)}/verify`, { method: "POST", auth: "session" });
+}
+
+export async function deleteProvider(id: string): Promise<void> {
+  await apiFetch(`/v1/providers/${encodeURIComponent(id)}`, { method: "DELETE", auth: "session" });
+}
+
 /** Public homepage playground — no API key; server enforces IP rate limits and URL safety. */
 export async function playgroundFetch<T = unknown>(
   path: "/v1/playground/scrape" | "/v1/playground/map" | "/v1/playground/crawl",
@@ -264,4 +398,94 @@ export async function playgroundFetch<T = unknown>(
     throw new RestApiError(res.status, msg, code, rid, data);
   }
   return data as T;
+}
+
+// --- Admin (ADMIN_SECRET bearer token) ---
+
+export type AdminStats = {
+  total_users: number;
+  total_requests_30d: number;
+  success_rate: number;
+  active_jobs: number;
+  failed_jobs: number;
+  avg_latency_ms: number;
+  jobs_by_status?: Record<string, number>;
+};
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  created_at: string | null;
+  key_count: number;
+  job_count: number;
+  request_count_30d: number;
+};
+
+export type AdminJob = {
+  id: string;
+  user_email: string | null;
+  type: string;
+  status: string;
+  url: string;
+  created_at: string | null;
+  finished_at: string | null;
+  error_message: string | null;
+  progress: number;
+};
+
+export type AdminHealth = {
+  db: string;
+  users: number;
+  active_sessions: number;
+};
+
+export async function getAdminHealth(): Promise<AdminHealth> {
+  return apiFetch<AdminHealth>("/v1/admin/health", { auth: "admin" });
+}
+
+export async function getAdminStats(): Promise<AdminStats> {
+  return apiFetch<AdminStats>("/v1/admin/stats", { auth: "admin" });
+}
+
+export async function listAdminUsers(opts?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+}): Promise<{ users: AdminUser[]; total: number; limit: number; offset: number }> {
+  const params = new URLSearchParams();
+  if (opts?.limit != null) params.set("limit", String(opts.limit));
+  if (opts?.offset != null) params.set("offset", String(opts.offset));
+  if (opts?.search) params.set("search", opts.search);
+  const qs = params.toString();
+  return apiFetch(`/v1/admin/users${qs ? `?${qs}` : ""}`, { auth: "admin" });
+}
+
+export async function deleteAdminUser(userId: string): Promise<void> {
+  await apiFetch(`/v1/admin/users/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+    auth: "admin",
+  });
+}
+
+export async function listAdminJobs(opts?: {
+  limit?: number;
+  offset?: number;
+  status?: string;
+  type?: string;
+}): Promise<{ jobs: AdminJob[]; total: number; limit: number; offset: number }> {
+  const params = new URLSearchParams();
+  if (opts?.limit != null) params.set("limit", String(opts.limit));
+  if (opts?.offset != null) params.set("offset", String(opts.offset));
+  if (opts?.status) params.set("status", opts.status);
+  if (opts?.type) params.set("type", opts.type);
+  const qs = params.toString();
+  return apiFetch(`/v1/admin/jobs${qs ? `?${qs}` : ""}`, { auth: "admin" });
+}
+
+export async function deleteAdminJob(jobId: string): Promise<void> {
+  await apiFetch(`/v1/admin/jobs/${encodeURIComponent(jobId)}`, {
+    method: "DELETE",
+    auth: "admin",
+  });
 }

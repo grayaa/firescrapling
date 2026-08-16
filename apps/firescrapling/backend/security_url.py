@@ -47,6 +47,49 @@ def _host_is_blocked_ip(host: str) -> bool:
     return False
 
 
+def is_private_host(url: str) -> bool:
+    """
+    True if the URL targets loopback / RFC1918 / link-local / ULA.
+    Ignores API_ALLOW_PRIVATE_URLS — used to keep paid providers from seeing private URLs.
+
+    Unresolvable hostnames are *not* treated as private (unknown ≠ private). The API
+    boundary still rejects them via validate_request_url / _host_is_blocked_ip.
+    """
+    if not url or not isinstance(url, str):
+        return True
+    parsed = urlparse(url.strip())
+    host = parsed.hostname
+    if not host:
+        return True
+    hl = host.lower()
+    if hl in ("localhost", "0.0.0.0") or hl.endswith(".local"):
+        return True
+    # Literal IPs without DNS
+    try:
+        ip = ipaddress.ip_address(host.strip("[]"))
+        for net in _DISALLOW_NETWORKS:
+            if ip.version == net.version and ip in net:
+                return True
+        return False
+    except ValueError:
+        pass
+    # Hostname: private only if DNS resolves into a blocked network.
+    try:
+        infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        return False
+    for info in infos:
+        addr = info[4][0]
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError:
+            continue
+        for net in _DISALLOW_NETWORKS:
+            if ip.version == net.version and ip in net:
+                return True
+    return False
+
+
 def validate_request_url(url: str, *, force_public_only: bool = False) -> Optional[str]:
     """
     Return None if URL is allowed for server-side fetch, else an error message.
@@ -67,10 +110,6 @@ def validate_request_url(url: str, *, force_public_only: bool = False) -> Option
         return "Invalid host"
     if allow_private_urls() and not force_public_only:
         return None
-    # Block obvious local hostnames without DNS
-    hl = host.lower()
-    if hl in ("localhost", "0.0.0.0") or hl.endswith(".local"):
+    if is_private_host(u):
         return "Requests to local or private hosts are not allowed"
-    if _host_is_blocked_ip(host):
-        return "Requests to private or loopback addresses are not allowed"
     return None

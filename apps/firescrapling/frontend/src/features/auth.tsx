@@ -5,7 +5,8 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Flame, LogIn, UserPlus, Mail, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
-import { loginUser, registerUser } from '../restClient';
+import { cn } from '../lib/utils';
+import { loginUser, registerUser, getCapabilities } from '../restClient';
 
 export interface UserData {
   id: string;
@@ -21,11 +22,22 @@ export function AuthView({ onLogin }: AuthProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'login' | 'register'>('login');
+  const [registrationOpen, setRegistrationOpen] = useState(true);
 
   // Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+
+  React.useEffect(() => {
+    getCapabilities()
+      .then((c) => {
+        const open = c.registration_open !== false;
+        setRegistrationOpen(open);
+        if (!open) setTab('login');
+      })
+      .catch(() => setRegistrationOpen(true));
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,13 +85,18 @@ export function AuthView({ onLogin }: AuthProps) {
         </div>
 
         <Tabs value={tab} onValueChange={(v: any) => setTab(v)} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-zinc-900/50 border border-white/5 h-12">
+          <TabsList className={cn(
+            "grid w-full bg-zinc-900/50 border border-white/5 h-12",
+            registrationOpen ? "grid-cols-2" : "grid-cols-1"
+          )}>
             <TabsTrigger value="login" className="data-[state=active]:bg-orange-600 data-[state=active]:text-white font-bold text-xs">
               <LogIn className="h-3 w-3 mr-2" /> LOGIN
             </TabsTrigger>
-            <TabsTrigger value="register" className="data-[state=active]:bg-orange-600 data-[state=active]:text-white font-bold text-xs">
-              <UserPlus className="h-3 w-3 mr-2" /> REGISTER
-            </TabsTrigger>
+            {registrationOpen && (
+              <TabsTrigger value="register" className="data-[state=active]:bg-orange-600 data-[state=active]:text-white font-bold text-xs">
+                <UserPlus className="h-3 w-3 mr-2" /> REGISTER
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="login" className="mt-4">
@@ -136,6 +153,7 @@ export function AuthView({ onLogin }: AuthProps) {
           </TabsContent>
 
           <TabsContent value="register" className="mt-4">
+            {registrationOpen && (
             <Card className="bg-zinc-900/40 border-white/5 backdrop-blur-xl">
               <form onSubmit={handleRegister}>
                 <CardHeader>
@@ -198,6 +216,7 @@ export function AuthView({ onLogin }: AuthProps) {
                 </CardFooter>
               </form>
             </Card>
+            )}
           </TabsContent>
         </Tabs>
 

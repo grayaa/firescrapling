@@ -1,166 +1,622 @@
 openapi: 3.1.0
 info:
   title: FireScrapling API
-  description: |
-    FireScrapling is an API-first web scraping and crawling engine designed to convert complex websites into clean, LLM-ready Markdown or structured JSON data.
-    
-    ### Key Features:
-    * **LLM-Ready Markdown**: High-quality markdown extraction optimized for RAG pipelines.
-    * **Anti-Bot Bypass**: Native support for Cloudflare, Akamai, and DataDome.
-    * **Dynamic Actions**: Interact with pages (click, scroll, wait) before extraction.
-    * **Async Crawling**: Scalable domain crawling with webhook support.
-  version: 1.5.0
-  contact:
-    name: FireScrapling Support
-    url: https://firescrapling.com/support
-  license:
-    name: Proprietary
-
-servers:
-  - url: https://api.firescrapling.com/v1
-    description: Production API v1
-
-components:
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      description: Enter your API Key (Bearer Token) generated from the FireScrapling Dashboard.
-
-  schemas:
-    Format:
-      type: string
-      enum: [markdown, html, raw_content, screenshot]
-      description: Requested output formats for the extraction.
-
-    Action:
-      type: object
-      properties:
-        type:
-          type: string
-          enum: [wait, click, scroll, screenshot, press]
-        selector:
-          type: string
-          description: CSS selector for the action (required for click, wait, scroll).
-        milliseconds:
-          type: integer
-          description: Duration to wait (required for wait).
-      required: [type]
-
-    ScrapeRequest:
-      type: object
-      required: [url]
-      properties:
-        url:
-          type: string
-          format: uri
-          example: "https://stripe.com/docs"
-        formats:
-          type: array
-          items:
-            $ref: '#/components/schemas/Format'
-          default: ["markdown"]
-        onlyMainContent:
-          type: boolean
-          default: true
-          description: If true, removes headers, footers, and sidebars.
-        actions:
-          type: array
-          items:
-            $ref: '#/components/schemas/Action'
-        schema:
-          type: object
-          description: Optional JSON schema for structured data extraction via AI.
-
-    ScrapeResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: object
-          properties:
-            markdown:
-              type: string
-              description: Cleaned markdown content.
-            html:
-              type: string
-              description: Raw HTML content.
-            metadata:
-              type: object
-              properties:
-                title: {type: string}
-                description: {type: string}
-                language: {type: string}
-                source_url: {type: string}
-            llm_extraction:
-              type: object
-              description: Structured data if a schema was provided.
-
-    CrawlRequest:
-      type: object
-      required: [url]
-      properties:
-        url:
-          type: string
-          format: uri
-        limit:
-          type: integer
-          default: 100
-          description: Maximum number of pages to crawl.
-        maxDepth:
-          type: integer
-          default: 2
-        webhook:
-          type: string
-          format: uri
-          description: Destination URL for crawl event notifications.
-
-    CrawlStatusResponse:
-      type: object
-      properties:
-        id: {type: string}
-        status:
-          type: string
-          enum: [scraping, completed, failed]
-        total: {type: integer}
-        completed: {type: integer}
-        credits_used: {type: integer}
-        expires_at: {type: string, format: date-time}
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/ScrapeResponse'
-
-    MapRequest:
-      type: object
-      required: [url]
-      properties:
-        url:
-          type: string
-          format: uri
-        search:
-          type: string
-          description: Filter links by search query.
-        ignoreSubdomains:
-          type: boolean
-          default: false
-
-    Error:
-      type: object
-      properties:
-        success: {type: boolean, example: false}
-        error: {type: string}
-        code: {type: string}
-
-security:
-  - BearerAuth: []
-
+  version: 1.0.0
 paths:
-  /scrape:
+  /v1/billing/plans:
+    get:
+      tags:
+      - billing
+      summary: Billing Plans
+      operationId: billing_plans_v1_billing_plans_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Billing Plans V1 Billing Plans Get
+  /v1/billing/checkout:
     post:
-      summary: Scrape a single URL
-      description: Extracts content from a single URL and returns it in the requested formats.
+      tags:
+      - billing
+      summary: Billing Checkout
+      operationId: billing_checkout_v1_billing_checkout_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Billing Checkout V1 Billing Checkout Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/billing/webhook:
+    post:
+      tags:
+      - billing
+      summary: Billing Webhook
+      operationId: billing_webhook_v1_billing_webhook_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Billing Webhook V1 Billing Webhook Post
+  /health:
+    get:
+      summary: Health
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Health Health Get
+  /v1/capabilities:
+    get:
+      summary: Capabilities
+      description: Public flags describing which optional infra is configured.
+      operationId: capabilities_v1_capabilities_get
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapabilitiesResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/providers:
+    get:
+      summary: Providers List
+      operationId: providers_list_v1_providers_get
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Providers List V1 Providers Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      summary: Providers Create
+      operationId: providers_create_v1_providers_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderCreateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Providers Create V1 Providers Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/providers/{credential_id}/verify:
+    post:
+      summary: Providers Verify
+      operationId: providers_verify_v1_providers__credential_id__verify_post
+      parameters:
+      - name: credential_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Credential Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Providers Verify V1 Providers  Credential Id  Verify
+                  Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/providers/{credential_id}:
+    delete:
+      summary: Providers Delete
+      operationId: providers_delete_v1_providers__credential_id__delete
+      parameters:
+      - name: credential_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Credential Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Providers Delete V1 Providers  Credential Id  Delete
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /health/ready:
+    get:
+      summary: Health Ready
+      operationId: health_ready_health_ready_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Health Ready Health Ready Get
+  /v1/playground/scrape:
+    post:
+      summary: Playground Scrape
+      description: 'Anonymous homepage demo: markdown-only scrape, strict URL checks,
+        IP rate limit.'
+      operationId: playground_scrape_v1_playground_scrape_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaygroundUrlBody'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Playground Scrape V1 Playground Scrape Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/playground/map:
+    post:
+      summary: Playground Map
+      operationId: playground_map_v1_playground_map_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaygroundMapBody'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Playground Map V1 Playground Map Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/playground/crawl:
+    post:
+      summary: Playground Crawl
+      operationId: playground_crawl_v1_playground_crawl_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaygroundUrlBody'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Playground Crawl V1 Playground Crawl Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/auth/register:
+    post:
+      summary: Auth Register
+      operationId: auth_register_v1_auth_register_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Auth Register V1 Auth Register Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/auth/login:
+    post:
+      summary: Auth Login
+      operationId: auth_login_v1_auth_login_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Auth Login V1 Auth Login Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/auth/logout:
+    post:
+      summary: Auth Logout
+      operationId: auth_logout_v1_auth_logout_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: boolean
+                title: Response Auth Logout V1 Auth Logout Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/keys:
+    post:
+      summary: Keys Create
+      operationId: keys_create_v1_keys_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateKeyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Keys Create V1 Keys Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      summary: Keys List
+      operationId: keys_list_v1_keys_get
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Keys List V1 Keys Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/keys/{key_id}:
+    delete:
+      summary: Keys Delete
+      operationId: keys_delete_v1_keys__key_id__delete
+      parameters:
+      - name: key_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Key Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Keys Delete V1 Keys  Key Id  Delete
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/usage/summary:
+    get:
+      summary: Usage Summary
+      description: Dashboard aggregates for the signed-in account.
+      operationId: usage_summary_v1_usage_summary_get
+      parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 365
+          minimum: 1
+          default: 30
+          title: Days
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Usage Summary V1 Usage Summary Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/usage/fetch-savings:
+    get:
+      summary: Usage Fetch Savings
+      description: Estimated credit savings vs always using ASP/anti-bot tier.
+      operationId: usage_fetch_savings_v1_usage_fetch_savings_get
+      parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 365
+          minimum: 1
+          default: 30
+          title: Days
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Usage Fetch Savings V1 Usage Fetch Savings Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/scrape:
+    post:
+      summary: Scrape
+      operationId: scrape_v1_scrape_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
       requestBody:
         required: true
         content:
@@ -169,36 +625,46 @@ paths:
               $ref: '#/components/schemas/ScrapeRequest'
       responses:
         '200':
-          description: Successful extraction
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ScrapeResponse'
-              examples:
-                Success:
-                  value:
-                    success: true
-                    data:
-                      markdown: "# Documentation\n\nStripe's API uses RESTful principles..."
-                      metadata:
-                        title: "Stripe Docs"
-                        language: "en"
-                        source_url: "https://stripe.com/docs"
-        '401':
-          description: Unauthorized
+                title: Response Scrape V1 Scrape Post
+        '422':
+          description: Validation Error
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-
-  /crawl:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/crawl:
     post:
-      summary: Initiate an asynchronous crawl
-      description: Starts a crawl job for a domain. Returns a job ID to poll for results.
+      summary: Crawl
+      operationId: crawl_v1_crawl_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
       requestBody:
         required: true
         content:
@@ -207,36 +673,232 @@ paths:
               $ref: '#/components/schemas/CrawlRequest'
       responses:
         '202':
-          description: Crawl job accepted
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: object
-                properties:
-                  success: {type: boolean}
-                  id: {type: string}
-                  url: {type: string}
-
-  /crawl/{id}:
-    get:
-      summary: Get crawl results or status
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: {type: string}
-      responses:
-        '200':
-          description: Crawl status and data
+                additionalProperties: true
+                title: Response Crawl V1 Crawl Post
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CrawlStatusResponse'
-
-  /map:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/jobs:
+    get:
+      summary: List Jobs
+      operationId: list_jobs_v1_jobs_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response List Jobs V1 Jobs Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/jobs/{job_id}:
+    get:
+      summary: Get Job
+      operationId: get_job_v1_jobs__job_id__get
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Job V1 Jobs  Job Id  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/jobs/{job_id}/stream:
+    get:
+      summary: Job Stream
+      operationId: job_stream_v1_jobs__job_id__stream_get
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      - name: format
+        in: query
+        required: false
+        schema:
+          type: string
+          default: sse
+          title: Format
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/crawl/{job_id}:
+    get:
+      summary: Crawl Status
+      operationId: crawl_status_v1_crawl__job_id__get
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Crawl Status V1 Crawl  Job Id  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/map:
     post:
-      summary: Map a domain
-      description: Discovers all links on a domain without extracting content.
+      summary: Map Site
+      operationId: map_site_v1_map_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
       requestBody:
         required: true
         content:
@@ -245,13 +907,787 @@ paths:
               $ref: '#/components/schemas/MapRequest'
       responses:
         '200':
-          description: List of discovered links
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: object
-                properties:
-                  success: {type: boolean}
-                  links:
-                    type: array
-                    items: {type: string}
+                additionalProperties: true
+                title: Response Map Site V1 Map Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/extract/media/supported:
+    get:
+      summary: Extract Media Supported
+      operationId: extract_media_supported_v1_extract_media_supported_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Extract Media Supported V1 Extract Media Supported
+                  Get
+  /v1/extract/media:
+    post:
+      summary: Extract Media
+      operationId: extract_media_v1_extract_media_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractMediaRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Extract Media V1 Extract Media Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/admin/health:
+    get:
+      summary: Admin Health
+      operationId: admin_health_v1_admin_health_get
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Admin Health V1 Admin Health Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/admin/stats:
+    get:
+      summary: Admin Stats
+      operationId: admin_stats_v1_admin_stats_get
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Admin Stats V1 Admin Stats Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/admin/users:
+    get:
+      summary: Admin Users
+      operationId: admin_users_v1_admin_users_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Admin Users V1 Admin Users Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/admin/users/{user_id}:
+    delete:
+      summary: Admin Users Delete
+      operationId: admin_users_delete_v1_admin_users__user_id__delete
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Admin Users Delete V1 Admin Users  User Id  Delete
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/admin/jobs:
+    get:
+      summary: Admin Jobs
+      operationId: admin_jobs_v1_admin_jobs_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+      - name: type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Type
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Admin Jobs V1 Admin Jobs Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/admin/jobs/{job_id}:
+    delete:
+      summary: Admin Jobs Delete
+      operationId: admin_jobs_delete_v1_admin_jobs__job_id__delete
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Admin Jobs Delete V1 Admin Jobs  Job Id  Delete
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    CapabilitiesResponse:
+      properties:
+        scrapfly:
+          type: boolean
+          title: Scrapfly
+          default: false
+        scrapedo:
+          type: boolean
+          title: Scrapedo
+          default: false
+        fetch_provider:
+          type: string
+          title: Fetch Provider
+          default: local
+        fetch_escalate:
+          type: boolean
+          title: Fetch Escalate
+          default: true
+        js_render:
+          type: boolean
+          title: Js Render
+          default: true
+        js_render_default:
+          type: boolean
+          title: Js Render Default
+          default: false
+        anti_bot:
+          type: boolean
+          title: Anti Bot
+          default: false
+        proxy_rotation:
+          type: boolean
+          title: Proxy Rotation
+          default: false
+        queue:
+          type: boolean
+          title: Queue
+          default: false
+        webhooks:
+          type: boolean
+          title: Webhooks
+          default: true
+        markdown:
+          type: boolean
+          title: Markdown
+          default: true
+        byok:
+          type: boolean
+          title: Byok
+          default: false
+        hosted:
+          type: boolean
+          title: Hosted
+          default: false
+        managed_fetch:
+          type: boolean
+          title: Managed Fetch
+          default: true
+        playground:
+          type: boolean
+          title: Playground
+          default: false
+        registration_open:
+          type: boolean
+          title: Registration Open
+          default: false
+        billing:
+          type: boolean
+          title: Billing
+          default: false
+        extract_media:
+          type: boolean
+          title: Extract Media
+          default: true
+        encryption_key_present:
+          type: boolean
+          title: Encryption Key Present
+          default: false
+        admin_configured:
+          type: boolean
+          title: Admin Configured
+          default: false
+        rate_limit_per_minute:
+          type: integer
+          title: Rate Limit Per Minute
+          default: 60
+        domain_profile_ttl_seconds:
+          type: integer
+          title: Domain Profile Ttl Seconds
+          default: 86400
+        database_backend:
+          type: string
+          title: Database Backend
+          default: sqlite
+        worker_concurrency:
+          type: integer
+          title: Worker Concurrency
+          default: 2
+        version:
+          type: string
+          title: Version
+          default: dev
+        commit:
+          type: string
+          title: Commit
+          default: unknown
+        credential_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Credential Source
+        credential_provider:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Credential Provider
+        platform_env:
+          anyOf:
+          - $ref: '#/components/schemas/PlatformEnvInfo'
+          - type: 'null'
+        crawl_global_concurrency:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Crawl Global Concurrency
+        crawl_per_host_concurrency:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Crawl Per Host Concurrency
+      additionalProperties: true
+      type: object
+      title: CapabilitiesResponse
+      description: Typed /v1/capabilities contract — dashboard and docs branch on
+        these flags.
+    CheckoutRequest:
+      properties:
+        plan:
+          type: string
+          title: Plan
+          description: pro or team
+        success_url:
+          type: string
+          maxLength: 2048
+          minLength: 8
+          title: Success Url
+        cancel_url:
+          type: string
+          maxLength: 2048
+          minLength: 8
+          title: Cancel Url
+      type: object
+      required:
+      - plan
+      - success_url
+      - cancel_url
+      title: CheckoutRequest
+    CrawlRequest:
+      properties:
+        url:
+          type: string
+          title: Url
+        limit:
+          type: integer
+          title: Limit
+          default: 100
+        maxDepth:
+          type: integer
+          title: Maxdepth
+          default: 2
+        ignoreSubdomains:
+          type: boolean
+          title: Ignoresubdomains
+          default: false
+        webhook:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Webhook
+        webhook_secret:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Webhook Secret
+        renderJs:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Renderjs
+        asp:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Asp
+        proxyPool:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Proxypool
+        country:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Country
+      type: object
+      required:
+      - url
+      title: CrawlRequest
+    CreateKeyRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+      type: object
+      required:
+      - name
+      title: CreateKeyRequest
+    ExtractMediaRequest:
+      properties:
+        url:
+          type: string
+          title: Url
+        renderJs:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Renderjs
+      type: object
+      required:
+      - url
+      title: ExtractMediaRequest
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    LoginRequest:
+      properties:
+        email:
+          type: string
+          maxLength: 320
+          minLength: 3
+          title: Email
+        password:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Password
+      type: object
+      required:
+      - email
+      - password
+      title: LoginRequest
+    MapRequest:
+      properties:
+        url:
+          type: string
+          title: Url
+        search:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+        ignoreSubdomains:
+          type: boolean
+          title: Ignoresubdomains
+          default: false
+      type: object
+      required:
+      - url
+      title: MapRequest
+    PlatformEnvInfo:
+      properties:
+        provider:
+          type: string
+          enum:
+          - scrapedo
+          - scrapfly
+          title: Provider
+        env_var:
+          type: string
+          title: Env Var
+      type: object
+      required:
+      - provider
+      - env_var
+      title: PlatformEnvInfo
+    PlaygroundMapBody:
+      properties:
+        url:
+          type: string
+          title: Url
+        search:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+        ignoreSubdomains:
+          type: boolean
+          title: Ignoresubdomains
+          default: false
+      type: object
+      required:
+      - url
+      title: PlaygroundMapBody
+    PlaygroundUrlBody:
+      properties:
+        url:
+          type: string
+          title: Url
+      type: object
+      required:
+      - url
+      title: PlaygroundUrlBody
+    ProviderCreateRequest:
+      properties:
+        provider:
+          type: string
+          pattern: ^(scrapedo|scrapfly)$
+          title: Provider
+        api_key:
+          type: string
+          maxLength: 512
+          minLength: 8
+          title: Api Key
+        label:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Label
+        country:
+          anyOf:
+          - type: string
+            maxLength: 8
+          - type: 'null'
+          title: Country
+        proxy_pool:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Proxy Pool
+        residential_pool:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Residential Pool
+      type: object
+      required:
+      - provider
+      - api_key
+      title: ProviderCreateRequest
+    RegisterRequest:
+      properties:
+        email:
+          type: string
+          maxLength: 320
+          minLength: 3
+          title: Email
+        password:
+          type: string
+          maxLength: 256
+          minLength: 8
+          title: Password
+        full_name:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Full Name
+      type: object
+      required:
+      - email
+      - password
+      title: RegisterRequest
+    ScrapeRequest:
+      properties:
+        url:
+          type: string
+          title: Url
+        formats:
+          items:
+            type: string
+          type: array
+          title: Formats
+          default:
+          - markdown
+        onlyMainContent:
+          type: boolean
+          title: Onlymaincontent
+          default: true
+        actions:
+          anyOf:
+          - items:
+              additionalProperties: true
+              type: object
+            type: array
+          - type: 'null'
+          title: Actions
+        schema:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Schema
+        async:
+          type: boolean
+          title: Async
+          default: false
+        webhook:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Webhook
+        webhook_secret:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Webhook Secret
+        renderJs:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Renderjs
+        asp:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Asp
+        proxyPool:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Proxypool
+        country:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Country
+      type: object
+      required:
+      - url
+      title: ScrapeRequest
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

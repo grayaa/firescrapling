@@ -10,17 +10,18 @@ import logging
 import os
 import random
 import re
+import threading
 import time
 import urllib.parse
 import urllib.robotparser
-from collections import deque
+from collections import defaultdict, deque
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import tldextract
 import trafilatura
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
-from scrapling import Fetcher
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,23 @@ CRAWL_DELAY_BASE = 0.4
 CRAWL_DELAY_JITTER = 0.35
 MAX_HTML_STORE_BYTES = 5_000_000
 CACHE_TTL_SECONDS = int(os.environ.get("SCRAPE_CACHE_TTL", "3600"))
+
+
+def crawl_concurrency_caps() -> Tuple[int, int]:
+    """(global, per_host) worker caps from env."""
+    try:
+        global_cap = max(1, int(os.environ.get("CRAWL_GLOBAL_CONCURRENCY") or "4"))
+    except ValueError:
+        global_cap = 4
+    try:
+        per_host = max(1, int(os.environ.get("CRAWL_PER_HOST_CONCURRENCY") or "2"))
+    except ValueError:
+        per_host = 2
+    return global_cap, min(per_host, global_cap)
+
+
+def _host_key(url: str) -> str:
+    return (urllib.parse.urlparse(url).hostname or "").lower()
 
 
 class ScrapeHTTPError(Exception):
@@ -85,13 +103,30 @@ def fetch_with_retries(
     url: str,
     timeout: int = 30,
     max_retries: int = FETCH_MAX_RETRIES,
+    *,
+    render_js: Optional[bool] = None,
+    asp: Optional[bool] = None,
+    proxy_pool: Optional[str] = None,
+    country: Optional[str] = None,
+    ctx: Any = None,
 ) -> Any:
-    """Fetch URL via scrapling Fetcher with bounded retries on 5xx / transient errors."""
+    """Fetch via credit-aware strategy (or single-shot); retry 5xx/429 within the final attempt."""
+    from fetch_provider import FetchError
+    from fetch_strategy import fetch_with_strategy
+
     last_err: Optional[Exception] = None
     for attempt in range(max_retries):
         try:
-            response = Fetcher.get(url, timeout=timeout)
-            status = getattr(response, "status", None) or 200
+            response = fetch_with_strategy(
+                url,
+                timeout=timeout,
+                render_js=render_js,
+                asp=asp,
+                proxy_pool=proxy_pool,
+                country=country,
+                ctx=ctx,
+            )
+            status = int(getattr(response, "status", None) or 200)
             if status >= 500 and attempt < max_retries - 1:
                 time.sleep(FETCH_BACKOFF_BASE * (2**attempt) + random.uniform(0, 0.2))
                 continue
@@ -103,6 +138,12 @@ def fetch_with_retries(
             return response
         except ScrapeHTTPError:
             raise
+        except FetchError as e:
+            last_err = e
+            if attempt < max_retries - 1 and e.status >= 500:
+                time.sleep(FETCH_BACKOFF_BASE * (2**attempt) + random.uniform(0, 0.2))
+                continue
+            raise ScrapeHTTPError(e.status, url, str(e)) from e
         except Exception as e:
             last_err = e
             if attempt < max_retries - 1:
@@ -325,63 +366,112 @@ def crawl_bfs_iter(
     limit: int,
     max_depth: int,
     ignore_subdomains: bool,
+    *,
+    render_js: Optional[bool] = None,
+    asp: Optional[bool] = None,
+    proxy_pool: Optional[str] = None,
+    country: Optional[str] = None,
+    ctx: Any = None,
 ):
     """
-    BFS crawl generator. Yields:
+    Concurrent BFS crawl generator. Yields:
       ("page", {url, html, title, markdown, depth, index, total_limit})
       ("done", {count, errors})
+
+    Caps via CRAWL_GLOBAL_CONCURRENCY (default 4) and CRAWL_PER_HOST_CONCURRENCY
+    (default 2). Still honors robots.txt and per-request politeness delay.
     """
     errors: List[str] = []
     queue: deque[Tuple[str, int]] = deque([(normalize_http_url(seed_url), 0)])
     seen: Set[str] = set()
+    queued: Set[str] = {normalize_http_url(seed_url)}
     count = 0
     seed_norm = normalize_http_url(seed_url)
+    global_cap, per_host_cap = crawl_concurrency_caps()
+    host_sems: Dict[str, threading.Semaphore] = defaultdict(lambda: threading.Semaphore(per_host_cap))
+    host_locks: Dict[str, threading.Lock] = defaultdict(threading.Lock)
 
-    while queue and count < limit:
-        current, depth = queue.popleft()
-        if current in seen:
-            continue
-        seen.add(current)
-
-        if depth > max_depth:
-            continue
-
-        if not _robots.can_fetch(current):
-            errors.append(f"robots_disallow:{current}")
-            continue
-
-        time.sleep(CRAWL_DELAY_BASE + random.uniform(0, CRAWL_DELAY_JITTER))
-
+    def _fetch_one(current: str, depth: int) -> Tuple[str, int, Optional[Dict[str, Any]], Optional[str]]:
+        host = _host_key(current)
+        sem = host_sems[host]
+        sem.acquire()
         try:
-            response = fetch_with_retries(current, timeout=25)
+            # Serialize delay per host so politeness holds under concurrency.
+            with host_locks[host]:
+                time.sleep(CRAWL_DELAY_BASE + random.uniform(0, CRAWL_DELAY_JITTER))
+            response = fetch_with_retries(
+                current,
+                timeout=25,
+                render_js=render_js,
+                asp=asp,
+                proxy_pool=proxy_pool,
+                country=country,
+                ctx=ctx,
+            )
             html = response.html_content or ""
             if len(html) > MAX_HTML_STORE_BYTES:
                 html = html[:MAX_HTML_STORE_BYTES]
             title = extract_title_from_html(html)
             md_text = html_to_markdown(html, current, only_main_content=True)
-            count += 1
-            yield (
-                "page",
-                {
-                    "url": current,
-                    "html": html,
-                    "title": title,
-                    "markdown": md_text,
-                    "depth": depth,
-                    "index": count,
-                    "total_limit": limit,
-                },
-            )
-
-            if depth < max_depth and count < limit:
-                for link in extract_links_from_html(html, current):
-                    if not same_site(seed_norm, link, ignore_subdomains):
-                        continue
-                    nu = normalize_http_url(link)
-                    if nu not in seen:
-                        queue.append((nu, depth + 1))
+            return current, depth, {
+                "url": current,
+                "html": html,
+                "title": title,
+                "markdown": md_text,
+                "depth": depth,
+            }, None
         except Exception as e:
-            errors.append(f"{current}: {e}")
-            logger.warning("crawl skip %s: %s", current, e)
+            return current, depth, None, f"{current}: {e}"
+        finally:
+            sem.release()
+
+    in_flight: Dict[Future, Tuple[str, int]] = {}
+
+    with ThreadPoolExecutor(max_workers=global_cap) as pool:
+        while (queue or in_flight) and count < limit:
+            while queue and len(in_flight) < global_cap and count + len(in_flight) < limit:
+                current, depth = queue.popleft()
+                if current in seen:
+                    continue
+                seen.add(current)
+                if depth > max_depth:
+                    continue
+                if not _robots.can_fetch(current):
+                    errors.append(f"robots_disallow:{current}")
+                    continue
+                fut = pool.submit(_fetch_one, current, depth)
+                in_flight[fut] = (current, depth)
+
+            if not in_flight:
+                break
+
+            done, _ = wait(in_flight.keys(), return_when=FIRST_COMPLETED)
+            for fut in done:
+                in_flight.pop(fut, None)
+                try:
+                    current, depth, page, err = fut.result()
+                except Exception as e:
+                    errors.append(str(e))
+                    logger.warning("crawl worker failed: %s", e)
+                    continue
+                if err:
+                    errors.append(err)
+                    logger.warning("crawl skip %s", err)
+                    continue
+                if not page or count >= limit:
+                    continue
+                count += 1
+                page["index"] = count
+                page["total_limit"] = limit
+                yield ("page", page)
+
+                if depth < max_depth and count < limit:
+                    for link in extract_links_from_html(page.get("html") or "", current):
+                        if not same_site(seed_norm, link, ignore_subdomains):
+                            continue
+                        nu = normalize_http_url(link)
+                        if nu not in seen and nu not in queued:
+                            queued.add(nu)
+                            queue.append((nu, depth + 1))
 
     yield ("done", {"count": count, "errors": errors})

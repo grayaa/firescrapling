@@ -216,7 +216,97 @@ print(response.json())`,
 const data = await response.json();
 console.log(data);`
       }
-    }
+    },
+    {
+      method: 'GET',
+      path: '/v1/capabilities',
+      description: 'Public instance flags (hosted, BYOK, queue, credential source, registration).',
+      params: [],
+      code: {
+        curl: `curl "http://localhost:8000/v1/capabilities"`,
+        python: `import requests\nprint(requests.get("http://localhost:8000/v1/capabilities").json())`,
+        javascript: `const data = await fetch('http://localhost:8000/v1/capabilities').then(r => r.json());\nconsole.log(data);`,
+      },
+    },
+    {
+      method: 'GET',
+      path: '/v1/usage/fetch-savings',
+      description: 'Estimated credit savings vs always-ASP baseline (session auth).',
+      params: [
+        { name: 'days', type: 'integer', default: '30', description: 'Lookback window.' },
+      ],
+      code: {
+        curl: `curl "http://localhost:8000/v1/usage/fetch-savings?days=30" \\\n  -H "Authorization: Bearer SESSION_TOKEN"`,
+        python: `import requests\nr = requests.get("http://localhost:8000/v1/usage/fetch-savings", headers={"Authorization": "Bearer SESSION_TOKEN"})\nprint(r.json())`,
+        javascript: `const data = await fetch('http://localhost:8000/v1/usage/fetch-savings?days=30', {\n  headers: { Authorization: 'Bearer SESSION_TOKEN' }\n}).then(r => r.json());\nconsole.log(data);`,
+      },
+    },
+    {
+      method: 'GET',
+      path: '/v1/providers',
+      description: 'List BYOK provider credentials (session auth). Keys never returned in full.',
+      params: [],
+      code: {
+        curl: `curl "http://localhost:8000/v1/providers" \\\n  -H "Authorization: Bearer SESSION_TOKEN"`,
+        python: `import requests\nr = requests.get("http://localhost:8000/v1/providers", headers={"Authorization": "Bearer SESSION_TOKEN"})\nprint(r.json())`,
+        javascript: `const data = await fetch('http://localhost:8000/v1/providers', {\n  headers: { Authorization: 'Bearer SESSION_TOKEN' }\n}).then(r => r.json());\nconsole.log(data);`,
+      },
+    },
+    {
+      method: 'POST',
+      path: '/v1/providers',
+      description: 'Store an encrypted Scrape.do or Scrapfly key (requires BYOK_ENABLED).',
+      params: [
+        { name: 'provider', type: 'string', required: true, description: 'scrapedo | scrapfly' },
+        { name: 'api_key', type: 'string', required: true, description: 'Provider secret (min 8 chars).' },
+        { name: 'label', type: 'string', description: 'Optional label.' },
+      ],
+      code: {
+        curl: `curl -X POST "http://localhost:8000/v1/providers" \\\n  -H "Authorization: Bearer SESSION_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{"provider":"scrapedo","api_key":"YOUR_PROVIDER_KEY","label":"prod"}'`,
+        python: `import requests\nr = requests.post("http://localhost:8000/v1/providers", headers={"Authorization": "Bearer SESSION_TOKEN"}, json={"provider":"scrapedo","api_key":"YOUR_PROVIDER_KEY"})\nprint(r.json())`,
+        javascript: `const data = await fetch('http://localhost:8000/v1/providers', {\n  method: 'POST',\n  headers: { Authorization: 'Bearer SESSION_TOKEN', 'Content-Type': 'application/json' },\n  body: JSON.stringify({ provider: 'scrapedo', api_key: 'YOUR_PROVIDER_KEY' })\n}).then(r => r.json());\nconsole.log(data);`,
+      },
+    },
+    {
+      method: 'POST',
+      path: '/v1/auth/login',
+      description: 'Create a session token for account routes (keys, providers, usage).',
+      params: [
+        { name: 'email', type: 'string', required: true, description: 'Account email.' },
+        { name: 'password', type: 'string', required: true, description: 'Account password.' },
+      ],
+      code: {
+        curl: `curl -X POST "http://localhost:8000/v1/auth/login" \\\n  -H "Content-Type: application/json" \\\n  -d '{"email":"you@example.com","password":"…"}'`,
+        python: `import requests\nr = requests.post("http://localhost:8000/v1/auth/login", json={"email":"you@example.com","password":"…"})\nprint(r.json()["session_token"])`,
+        javascript: `const data = await fetch('http://localhost:8000/v1/auth/login', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ email: 'you@example.com', password: '…' })\n}).then(r => r.json());\nconsole.log(data.session_token);`,
+      },
+    },
+    {
+      method: 'POST',
+      path: '/v1/keys',
+      description: 'Create an API key (fs_…) for scrape/crawl/map (session auth).',
+      params: [
+        { name: 'name', type: 'string', required: true, description: 'Key label.' },
+      ],
+      code: {
+        curl: `curl -X POST "http://localhost:8000/v1/keys" \\\n  -H "Authorization: Bearer SESSION_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{"name":"ci"}'`,
+        python: `import requests\nr = requests.post("http://localhost:8000/v1/keys", headers={"Authorization": "Bearer SESSION_TOKEN"}, json={"name":"ci"})\nprint(r.json()["key"]["value"])`,
+        javascript: `const data = await fetch('http://localhost:8000/v1/keys', {\n  method: 'POST',\n  headers: { Authorization: 'Bearer SESSION_TOKEN', 'Content-Type': 'application/json' },\n  body: JSON.stringify({ name: 'ci' })\n}).then(r => r.json());\nconsole.log(data.key.value);`,
+      },
+    },
+    {
+      method: 'POST',
+      path: '/v1/scrape (extractMedia)',
+      description: 'Optional media extraction — returns manifest URLs only (no proxy/download).',
+      params: [
+        { name: 'extractMedia', type: 'boolean', description: 'When true, run registered custom extractors.' },
+      ],
+      code: {
+        curl: `curl -X POST "http://localhost:8000/v1/scrape" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"url":"https://example.com","formats":["markdown"],"extractMedia":true}'`,
+        python: `import requests\nr = requests.post("http://localhost:8000/v1/scrape", headers={"Authorization": "Bearer YOUR_API_KEY"}, json={"url":"https://example.com","formats":["markdown"],"extractMedia":True})\nprint(r.json())`,
+        javascript: `const data = await fetch('http://localhost:8000/v1/scrape', {\n  method: 'POST',\n  headers: { Authorization: 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },\n  body: JSON.stringify({ url: 'https://example.com', formats: ['markdown'], extractMedia: true })\n}).then(r => r.json());\nconsole.log(data);`,
+      },
+    },
   ];
 
   return (

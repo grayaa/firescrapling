@@ -1,142 +1,131 @@
 # FireScrapling
 
-An API-first web scraping, crawling and mapping engine that turns any URL into
-LLM-ready Markdown or structured JSON. FastAPI backend, React dashboard, one
-`docker compose up`.
+**AGPL-3.0-only**
 
-```
-                 ┌──────────────────────────┐
-  browser  ────► │ nginx (frontend :8080)   │
-                 │  • React SPA (Vite)      │
-                 │  • /v1/* → backend       │
-                 └───────────┬──────────────┘
-                             │
-                 ┌───────────▼──────────────┐
-                 │ FastAPI (backend :8000)  │
-                 │  api_server.py  routes   │
-                 │  api_auth.py    keys/RL  │
-                 │  security_url.py SSRF    │
-                 │  main.py        jobs     │
-                 │  scraping_engine.py      │
-                 └───────────┬──────────────┘
-                             │
-              ┌──────────────┼───────────────┐
-        SQLite (jobs,   file cache      Playwright /
-        keys, usage)    (data/cache)    scrapling fetcher
-```
+Self-hostable cost-control layer for teams already paying [Scrape.do](https://scrape.do) or
+[Scrapfly](https://scrapfly.io). Bring your own provider key; escalate fetch tiers only when
+needed; turn URLs into LLM-ready Markdown. Flat orchestration — not a credit reseller.
+
+## Why
+
+Always-on anti-bot (ASP / residential) burns credits. FireScrapling runs a cheap-first ladder
+and remembers what each domain needed:
+
+| Tier | Modeled weight |
+|------|----------------|
+| local | 0 |
+| sf_static | 1 |
+| sf_js | 5 |
+| sf_asp | 25 (baseline for “savings”) |
+| sf_residential | 75 |
+
+Estimated savings vs always-ASP: `GET /v1/usage/fetch-savings` and the Savings dashboard.
+See [docs/fetch-savings.md](docs/fetch-savings.md).
 
 ## Quickstart
 
 ```bash
-cp .env.example .env          # then edit: OPENROUTER_API_KEY is optional
+git clone https://github.com/firescrapling/firescrapling.git
+cd firescrapling
+cp .env.example .env
+# Enable BYOK (product thesis) — generate a Fernet key and write it into .env:
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Then set in .env:
+#   BYOK_ENABLED=true
+#   CREDENTIAL_ENCRYPTION_KEY=<paste key>
 docker compose up --build
 ```
 
-- Dashboard → http://localhost:8080
-- API → http://localhost:8000 (docs at `/docs`)
+- Dashboard: http://localhost:8080  
+- API: http://localhost:8000 (`/docs` for Swagger)
 
-Local dev without Docker:
-
-```bash
-# backend
-cd apps/firescrapling/backend
-pip install -r requirements.txt && playwright install chromium
-uvicorn api_server:app --reload --port 8000
-
-# frontend (proxies /v1 and /health to :8000, see vite.config.ts)
-cd apps/firescrapling/frontend
-npm install && npm run dev
-```
-
-## API tour
-
-Authenticate with an API key: `Authorization: Bearer fs_…` (or `X-API-Key`).
-Keys are created from the dashboard, or via `POST /v1/keys` with a session token
-from `POST /v1/auth/login`.
-
-| Endpoint | Purpose |
-|---|---|
-| `POST /v1/scrape` | Single page → `markdown`, `html`, `raw_content`, `links`, `images`, `screenshot`, or schema-driven `llm_extraction`. Supports browser `actions`, `async`, and webhooks. |
-| `POST /v1/crawl` | Async BFS crawl of a domain (`limit`, `maxDepth`, `ignoreSubdomains`) → `202` + job id |
-| `GET /v1/crawl/{id}` | Crawl status + per-page results |
-| `POST /v1/map` | Fast link discovery (page links + `sitemap.xml`), optional `search` filter |
-| `GET /v1/jobs`, `GET /v1/jobs/{id}` | Job history and status |
-| `GET /v1/jobs/{id}/stream` | Live logs as SSE or NDJSON (`?format=ndjson`) |
-| `POST /v1/auth/register\|login\|logout` | Account + session tokens |
-| `GET/POST/DELETE /v1/keys` | API key lifecycle (full value shown once) |
-| `POST /v1/playground/scrape\|map\|crawl` | Anonymous homepage demo, IP rate-limited |
-| `GET /health`, `GET /health/ready` | Liveness / readiness |
+Create the first account in the UI (registration closes after that unless
+`ALLOW_REGISTRATION=true`) → API Keys → then:
 
 ```bash
 curl -X POST http://localhost:8000/v1/scrape \
-  -H "Authorization: Bearer $FIRESCRAPLING_KEY" \
+  -H "Authorization: Bearer fs_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{"url":"https://example.com","formats":["markdown"],"onlyMainContent":true}'
 ```
 
-Every request carries `X-Request-ID` and `X-RateLimit-*` headers; errors are
-`{"error": {"code", "message", "request_id"}}`. `POST /v1/scrape|crawl` accept an
-`Idempotency-Key` header. Webhook payloads are signed with
-`X-FireScrapling-Signature: sha256=<hmac>` and retried with backoff.
+Defaults: `HOSTED_MODE=false`, `PLAYGROUND_ENABLED=false`, `ALLOW_REGISTRATION=false`
+(playground is opt-in; it burns *your* provider credits if enabled).
 
-## Configuration
+## BYOK
 
-All variables live in the root `.env` (see [.env.example](.env.example)).
+1. Generate an encryption key (also shown in the quickstart above):
+   ```bash
+   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   ```
+2. Set in `.env`:
+   ```
+   BYOK_ENABLED=true
+   CREDENTIAL_ENCRYPTION_KEY=<that key>
+   ```
+3. Dashboard → **Providers** → add Scrape.do or Scrapfly token (encrypted at rest).
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `CORS_ORIGINS` | `http://localhost:8080,…` | Allowed browser origins |
-| `API_REQUIRE_AUTH` | `true` | Require an API key on `/v1/scrape|crawl|map` |
-| `API_ALLOW_PRIVATE_URLS` | `false` | Allow localhost/private IP targets (dev only) |
-| `RATE_LIMIT_PER_MINUTE` | `60` | Per-key sliding window |
-| `SCRAPE_CACHE_TTL` | `3600` | Response cache TTL, seconds |
-| `PLAYGROUND_ENABLED` | `true` | Public no-auth demo endpoints |
-| `PLAYGROUND_RATE_LIMIT_PER_MINUTE` | `8` | Per-IP playground limit |
-| `PLAYGROUND_MAP_MAX_LINKS` / `_CRAWL_LIMIT` / `_RESULT_PREVIEW_CHARS` | `40` / `3` / `12000` | Playground caps |
-| `OPENROUTER_API_KEY` | — | Enables `schema` structured extraction |
-| `OPENROUTER_MODEL` | `google/gemini-2.0-flash-001` | Extraction model |
+Without BYOK, platform env keys (`SCRAPE_API_KEY` / `SCRAPFLY_API_KEY`) work when
+`MANAGED_FETCH_ENABLED=true` (self-host: no plan gating; plan gating only when
+`HOSTED_MODE=true`).
 
-## Engine notes
+## Environment (compose)
 
-- **Main content** via trafilatura (`onlyMainContent`), falling back to full-page markdownify.
-- **Crawling** is BFS with URL normalisation + dedup, `robots.txt` compliance,
-  politeness delay with jitter, and same-site / eTLD+1 scope rules.
-- **Fetching** uses `scrapling`'s stealth `Fetcher` with bounded retries and backoff on
-  5xx/429; Playwright is used when browser `actions` or `screenshot` are requested.
-- **SSRF protection**: loopback, RFC1918, link-local and unique-local targets are refused
-  unless explicitly allowed.
-- **Caching**: SHA-256 keyed file cache varying on URL + `onlyMainContent` + formats.
+| Variable | Default | Notes |
+|----------|---------|--------|
+| `HOSTED_MODE` | `false` | Billing / plan gates |
+| `ALLOW_REGISTRATION` | `false` | Extra signups after first account |
+| `PLAYGROUND_ENABLED` | `false` | Unauthenticated demo |
+| `BYOK_ENABLED` | `false` | Per-user provider keys |
+| `CREDENTIAL_ENCRYPTION_KEY` | — | Required if BYOK on |
+| `SCRAPE_API_KEY` / `SCRAPFLY_API_KEY` | — | Platform fetch |
+| `FETCH_ESCALATE` | `true` | Cheap-first ladder |
+| `REDIS_URL` | `redis://redis:6379/0` | RQ workers |
+| `ADMIN_SECRET` | — | `/v1/admin/*` |
 
-## Status
+Full commented list: [`.env.example`](.env.example).
 
-Production-ready: the extraction engine, the REST API, auth/keys, rate limiting,
-idempotency, webhooks, job streaming.
+## Architecture
 
-Wired to real data: sign-up/login, API key lifecycle, the playground, and the Overview
-dashboard (`GET /v1/usage/summary`).
+```
+browser → frontend :8080 (nginx) → backend :8000 (FastAPI)
+                                 → redis + RQ worker
+                                 → SQLite (or Postgres profile)
+```
 
-Known gaps (tracked in [docs/plan/](docs/plan/) and [ROADMAP.md](ROADMAP.md)):
+Fetch identity is a `FetchContext` (BYOK → platform → local). Queue payloads carry
+`user_id` only — never plaintext provider keys.
 
-- Webhooks and Billing screens are still placeholders; the admin console renders demo data
-  and is hidden unless the frontend is built with `VITE_ADMIN_DEMO=true`.
-- Jobs run in in-process threads, not a durable queue; storage is SQLite.
-- No credits/billing layer yet.
-- No automated test suite yet (`npm run typecheck` and
-  `python apps/firescrapling/backend/scripts/run_scraping_tests.py` are what exists).
+## MCP
+
+Optional Compose profile:
+
+```bash
+docker compose --profile mcp up
+```
+
+See [`apps/firescrapling/mcp/README.md`](apps/firescrapling/mcp/README.md) for a Cursor
+`.mcp.json` snippet (`FIRESCRAPLING_API_KEY=fs_…`).
+
+## Custom extractors
+
+Site adapters live under `apps/firescrapling/backend/extractors/`. The product surface is
+the **registry interface** (`base.py`): return **manifest / media URLs only** — no proxy,
+download, cache, or rehost. Shipped anime3rb / reelshort modules are **examples** of that
+interface, not the headline feature. See [docs/custom-extractors.md](docs/custom-extractors.md).
+
+## Hosted version?
+
+There is no hosted SaaS tier yet. If you want one, +1 the GitHub Discussion (linked from
+[docs/hosted.md](docs/hosted.md)). We track demand in
+[docs/decision-gate.md](docs/decision-gate.md).
 
 ## Contributing
 
-- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — setup, workflow, smoke loop, debugging.
-- [AGENTS.md](AGENTS.md) — architecture map, conventions and gotchas (read by Cursor and
-  other AI assistants, and useful to humans for the same reasons).
-- [docs/plan/00-current-plan.md](docs/plan/00-current-plan.md) — what to build next.
+- Backend tests: `cd apps/firescrapling/backend && pip install -r requirements-dev.txt && pytest -q`
+- Frontend: `cd apps/firescrapling/frontend && npm run typecheck`
+- Roadmap: `docs/plan/` (active: BYOK pivot + OSS surface)
 
-## Repo layout
+## Licence
 
-```
-apps/firescrapling/backend    FastAPI app + scraping engine
-apps/firescrapling/frontend   React + Vite + Tailwind + shadcn-style dashboard
-docs/                         Mintlify docs, development guide, improvement plans
-.cursor/rules/                Project conventions loaded by Cursor
-docker-compose.yml            backend + nginx-served frontend
-```
+[AGPL-3.0](LICENSE) — see SPDX identifier `AGPL-3.0-only`.
