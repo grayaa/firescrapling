@@ -120,7 +120,7 @@ class Settings:
     @property
     def allow_registration(self) -> bool:
         """When false, only the first account (empty users table) may register."""
-        return _bool("ALLOW_REGISTRATION", True)
+        return _bool("ALLOW_REGISTRATION", False)
 
     @property
     def managed_fetch_enabled(self) -> bool:

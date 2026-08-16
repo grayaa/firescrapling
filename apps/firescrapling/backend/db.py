@@ -1,14 +1,17 @@
-"""Database paths, sqlite connections, schema init, and SQLAlchemy Core skeleton."""
+"""Database paths, sqlite/Postgres connections, schema init, and SQLAlchemy Core."""
 from __future__ import annotations
 
 import logging
 import os
+import re
 import sqlite3
-from typing import Any, Optional
+from typing import Any, Iterable, Mapping, Optional, Sequence, Union
 
 from dotenv import load_dotenv
 from sqlalchemy import MetaData, create_engine, event, text
+from sqlalchemy.engine import Connection as SAConnection
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError as SAIntegrityError
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +29,12 @@ DB_PATH = os.path.join(DATA_DIR, "firescrapling.db")
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-# Shared metadata for Alembic / future Core table defs (queries still use sqlite3 today).
+# Shared metadata for Alembic / Core table defs.
 metadata = MetaData()
 
 _engine: Optional[Engine] = None
+
+Params = Union[Sequence[Any], Mapping[str, Any], None]
 
 
 def default_database_url() -> str:
@@ -41,8 +46,13 @@ def default_database_url() -> str:
     return f"sqlite:///{DB_PATH.replace(os.sep, '/')}"
 
 
+def is_postgres_url(url: Optional[str] = None) -> bool:
+    u = (url or default_database_url()).strip().lower()
+    return u.startswith("postgresql") or u.startswith("postgres")
+
+
 def get_engine(*, url: Optional[str] = None, force_new: bool = False) -> Engine:
-    """Lazy SQLAlchemy engine (Core). Used by Alembic and future query migration."""
+    """Lazy SQLAlchemy engine (Core). Used by Alembic and the Postgres service adapter."""
     global _engine
     if _engine is not None and not force_new and url is None:
         return _engine
@@ -77,20 +87,152 @@ def reset_engine() -> None:
         _engine = None
 
 
-def _connect() -> sqlite3.Connection:
-    """Open a DB connection with WAL + busy-timeout. Never runs DDL — call init_db() at startup.
+# ---------------------------------------------------------------------------
+# Postgres adapter — sqlite3-shaped API over SQLAlchemy (qmark + datetime())
+# ---------------------------------------------------------------------------
 
-    Still sqlite3-based for the service layer; SQLAlchemy Core is the migration path.
-    When DATABASE_URL points at Postgres, callers should use get_engine() instead —
-    local/tests keep the default sqlite file path.
-    """
-    url = (os.environ.get("DATABASE_URL") or "").strip()
-    if url and not url.startswith("sqlite"):
-        # Bridge: expose a sqlite3-like surface only for sqlite. Postgres uses Core.
-        raise RuntimeError(
-            "sqlite3 _connect() is only for sqlite. Set DATABASE_URL to sqlite:///… "
-            "or migrate the caller to SQLAlchemy Core (get_engine())."
-        )
+class DbRow:
+    """sqlite3.Row-compatible mapping (key + index access, dict())."""
+
+    __slots__ = ("_data", "_keys")
+
+    def __init__(self, mapping: Mapping[str, Any]) -> None:
+        self._data = dict(mapping)
+        self._keys = list(self._data.keys())
+
+    def keys(self) -> Iterable[str]:
+        return self._data.keys()
+
+    def __getitem__(self, key: Union[str, int]) -> Any:
+        if isinstance(key, int):
+            return self._data[self._keys[key]]
+        return self._data[key]
+
+    def __contains__(self, key: object) -> bool:
+        return key in self._data
+
+    def __iter__(self):
+        return iter(self._keys)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self._data.get(key, default)
+
+
+class DbCursor:
+    """Minimal cursor: fetchone/fetchall/rowcount after execute()."""
+
+    def __init__(self, result: Any) -> None:
+        self._result = result
+        rc = getattr(result, "rowcount", None)
+        self.rowcount = int(rc) if rc is not None and rc >= 0 else 0
+
+    def fetchone(self) -> Optional[DbRow]:
+        row = self._result.fetchone()
+        if row is None:
+            return None
+        return DbRow(row._mapping)
+
+    def fetchall(self) -> list[DbRow]:
+        return [DbRow(r._mapping) for r in self._result.fetchall()]
+
+
+_RE_DT_NOW = re.compile(r"datetime\('now'\)", re.IGNORECASE)
+_RE_DT_NOW_LIT = re.compile(r"datetime\('now',\s*'([^']+)'\)", re.IGNORECASE)
+_RE_DT_NOW_PARAM = re.compile(r"datetime\('now',\s*\?\)", re.IGNORECASE)
+_RE_DT_REPLACE = re.compile(
+    r"datetime\(replace\(([^,]+),\s*'T',\s*' '\)\)", re.IGNORECASE
+)
+_RE_DATE = re.compile(r"\bdate\(([^)]+)\)", re.IGNORECASE)
+_RE_BEGIN_IMM = re.compile(r"^\s*BEGIN\s+IMMEDIATE\s*$", re.IGNORECASE)
+
+
+def _norm_interval(modifier: str) -> str:
+    """SQLite datetime modifiers ('+72 hours', '-30 days') → Postgres interval text."""
+    return modifier.strip().lstrip("+").strip()
+
+
+def _rewrite_sql_postgres(sql: str) -> str:
+    """Translate the sqlite-shaped SQL this codebase emits into Postgres."""
+    if _RE_BEGIN_IMM.match(sql.strip()):
+        # SA connections autobegin; exclusive lock is best-effort via the txn.
+        return "SELECT 1 WHERE false"
+    out = sql
+    out = _RE_DT_REPLACE.sub(
+        r"CAST(replace(replace(\1, 'T', ' '), 'Z', '') AS TIMESTAMP)", out
+    )
+    out = _RE_DT_NOW_LIT.sub(
+        lambda m: f"(CURRENT_TIMESTAMP + INTERVAL '{_norm_interval(m.group(1))}')", out
+    )
+    out = _RE_DT_NOW_PARAM.sub("(CURRENT_TIMESTAMP + CAST(? AS interval))", out)
+    out = _RE_DT_NOW.sub("CURRENT_TIMESTAMP", out)
+    out = _RE_DATE.sub(r"(CAST(\1 AS timestamptz)::date)", out)
+    # Timestamp columns are TEXT in the schema; cast before comparing to timestamptz.
+    out = re.sub(
+        r"\b(expires_at|created_at|finished_at|last_used|last_used_at|updated_at|current_period_end)"
+        r"\s*(>=|<=|>|<)\s*",
+        r"\1::timestamptz \2 ",
+        out,
+        flags=re.IGNORECASE,
+    )
+    return out
+
+
+def _qmark_to_binds(sql: str, params: Params) -> tuple[str, dict[str, Any]]:
+    if params is None:
+        return sql, {}
+    if isinstance(params, Mapping):
+        return sql, dict(params)
+    binds: dict[str, Any] = {}
+    idx = 0
+
+    def _repl(_: re.Match[str]) -> str:
+        nonlocal idx
+        key = f"p{idx}"
+        binds[key] = params[idx]  # type: ignore[index]
+        idx += 1
+        return f":{key}"
+
+    return re.sub(r"\?", _repl, sql), binds
+
+
+class PgConnection:
+    """sqlite3.Connection lookalike backed by SQLAlchemy for Postgres."""
+
+    def __init__(self, sa_conn: SAConnection) -> None:
+        self._conn = sa_conn
+
+    def execute(self, sql: str, params: Params = None) -> DbCursor:
+        rewritten = _rewrite_sql_postgres(sql)
+        named_sql, binds = _qmark_to_binds(rewritten, params)
+        # Normalize interval modifiers passed as bound strings ('+72 hours').
+        for k, v in list(binds.items()):
+            if isinstance(v, str) and re.fullmatch(
+                r"[+-]?\d+\s+(seconds|minutes|hours|days|months|years)",
+                v.strip(),
+                flags=re.IGNORECASE,
+            ):
+                binds[k] = _norm_interval(v)
+        try:
+            result = self._conn.execute(text(named_sql), binds)
+        except SAIntegrityError as e:
+            # Call sites catch sqlite3.IntegrityError (auth/jobs idempotency).
+            raise sqlite3.IntegrityError(str(e.orig if getattr(e, "orig", None) else e)) from e
+        return DbCursor(result)
+
+    def commit(self) -> None:
+        self._conn.commit()
+
+    def rollback(self) -> None:
+        self._conn.rollback()
+
+    def close(self) -> None:
+        self._conn.close()
+
+
+def _connect_sqlite() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -99,6 +241,17 @@ def _connect() -> sqlite3.Connection:
     # writer to finish rather than failing immediately with "database is locked".
     conn.execute("PRAGMA busy_timeout=10000")
     return conn
+
+
+def _connect() -> Union[sqlite3.Connection, PgConnection]:
+    """Open a DB connection. Never runs DDL — call init_db() / alembic at startup.
+
+    SQLite: native sqlite3 (local/tests).
+    Postgres: SQLAlchemy adapter that accepts the existing qmark / datetime() SQL.
+    """
+    if is_postgres_url():
+        return PgConnection(get_engine().connect())
+    return _connect_sqlite()
 
 
 # Alias kept for backward-compat (health_ready in api_server.py etc.)
@@ -176,12 +329,10 @@ def init_db() -> None:
     Prefer `alembic upgrade head` in deployed environments; this bootstrap keeps
     local/tests working without a separate migration step.
     """
-    url = (os.environ.get("DATABASE_URL") or "").strip()
-    if url and not url.startswith("sqlite"):
-        # Service layer still uses sqlite3 helpers; Postgres is Alembic + Core.
+    if is_postgres_url():
         logger.info(
-            "DATABASE_URL is non-sqlite — skipping sqlite bootstrap; "
-            "run `alembic upgrade head` for schema"
+            "DATABASE_URL is Postgres — skipping sqlite bootstrap; "
+            "expect `alembic upgrade head` (compose entrypoint runs it)"
         )
         from settings import get_settings
 
@@ -191,7 +342,7 @@ def init_db() -> None:
             c.execute(text("SELECT 1"))
         return
 
-    conn = _connect()
+    conn = _connect_sqlite()
     try:
         conn.execute(
             """

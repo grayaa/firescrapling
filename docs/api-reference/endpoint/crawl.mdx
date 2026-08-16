@@ -1,0 +1,22 @@
+---
+title: "POST /v1/crawl"
+description: "Start a multi-page crawl job."
+---
+
+Enqueue a crawl on **your** self-hosted instance. Poll job status with the returned
+`job_id` (see Swagger `/docs`).
+
+```bash
+curl -X POST "http://localhost:8000/v1/crawl" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "limit": 10,
+    "maxDepth": 2
+  }'
+```
+
+Auth: API key (`fs_…`). Schema:
+[`openapi.yaml`](https://github.com/grayaa/firescrapling/blob/main/apps/firescrapling/backend/openapi.yaml).
+See also [API Reference](/api-reference/introduction).

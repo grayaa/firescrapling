@@ -17,11 +17,12 @@ services:
   # Optional Postgres — enable with: docker compose --profile postgres up
   # Then set DATABASE_URL=postgresql+psycopg://firescrapling:firescrapling@postgres:5432/firescrapling
   # Default remains sqlite (no profile required).
+  # Host port defaults to 5433 so it does not clash with another local Postgres on 5432.
   postgres:
     profiles: ["postgres"]
     image: postgres:16-alpine
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-firescrapling}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-firescrapling}
@@ -48,6 +49,10 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      # Ignored when the postgres profile is off (Compose v2.20+).
+      postgres:
+        condition: service_healthy
+        required: false
     environment:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       API_REQUIRE_AUTH: ${API_REQUIRE_AUTH:-true}
@@ -66,7 +71,7 @@ services:
       PLAYGROUND_CRAWL_LIMIT: ${PLAYGROUND_CRAWL_LIMIT:-3}
       PLAYGROUND_RESULT_PREVIEW_CHARS: ${PLAYGROUND_RESULT_PREVIEW_CHARS:-12000}
       HOSTED_MODE: ${HOSTED_MODE:-false}
-      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       QUEUE_ENABLED: ${QUEUE_ENABLED:-true}
       FETCH_PROVIDER: ${FETCH_PROVIDER:-auto}
@@ -105,6 +110,9 @@ services:
         condition: service_healthy
       backend:
         condition: service_started
+      postgres:
+        condition: service_healthy
+        required: false
     environment:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       QUEUE_ENABLED: "true"

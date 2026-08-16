@@ -24,4 +24,7 @@ CMD ["pytest", "-q"]
 
 # Default image (must be last stage so `docker compose build` runs the API).
 FROM base AS runtime
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8000"]

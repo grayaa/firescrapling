@@ -50,6 +50,12 @@
       ]
     },
     {
+      "group": "Compare",
+      "pages": [
+        "comparison"
+      ]
+    },
+    {
       "group": "Guides",
       "pages": [
         "custom-extractors",

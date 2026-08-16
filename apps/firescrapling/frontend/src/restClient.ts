@@ -5,6 +5,9 @@ const STORAGE_KEY = "firescrapling_api_key";
 const SESSION_KEY = "firescrapling_session";
 const ADMIN_KEY = "firescrapling_admin_token";
 
+/** Dispatched when a session-authenticated call gets 401 (e.g. DB reset). */
+export const SESSION_EXPIRED_EVENT = "firescrapling:session-expired";
+
 export function getApiKey(): string {
   try {
     return localStorage.getItem(STORAGE_KEY) ?? "";
@@ -166,6 +169,19 @@ export async function apiFetch<T = unknown>(
     const errObj = data && typeof data === "object" && "error" in data ? (data as ApiErrorBody).error : undefined;
     const code = (errObj?.code as string) || `http_${res.status}`;
     const rid = errObj?.request_id as string | undefined;
+    // Stale session after DB wipe / Postgres switch — drop token so the UI can re-auth.
+    // Only clear if this request's token is still the active one (ignore late 401s from
+    // older in-flight calls after a fresh login).
+    if (res.status === 401 && auth === "session" && credential) {
+      if (getSessionToken() === credential) {
+        setSessionToken("");
+        try {
+          window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+        } catch {
+          /* ignore */
+        }
+      }
+    }
     throw new RestApiError(res.status, msg, code, rid, data);
   }
 

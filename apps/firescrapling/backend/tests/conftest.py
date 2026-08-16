@@ -110,23 +110,61 @@ def stub_paid_fetcher(monkeypatch: pytest.MonkeyPatch):
 
 
 # ---------------------------------------------------------------------------
-# Isolated SQLite DB — fresh file per test
+# Isolated DB — SQLite temp file, or Postgres when TEST_DATABASE_URL is set
 # ---------------------------------------------------------------------------
+
+def _postgres_test_url() -> str | None:
+    """Optional Postgres URL for CI/local (`TEST_DATABASE_URL`)."""
+    url = (os.environ.get("TEST_DATABASE_URL") or "").strip()
+    if url and not url.startswith("sqlite"):
+        return url
+    return None
+
+
+def _reset_postgres_schema(url: str) -> None:
+    """Drop public schema and re-apply Alembic so each test starts clean."""
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    eng = create_engine(url, future=True)
+    with eng.begin() as conn:
+        conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
+        conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
+    eng.dispose()
+
+    ini = os.path.join(_BACKEND, "alembic.ini")
+    cfg = Config(ini)
+    # env.py reads DATABASE_URL; caller already set it via monkeypatch/env.
+    command.upgrade(cfg, "head")
+
 
 @pytest.fixture()
 def isolated_db(tmp_path: "pytest.TempPathFactory", monkeypatch: pytest.MonkeyPatch) -> Generator[str, None, None]:
-    """Patch db.DB_PATH / main.DB_PATH to a temp file and initialise the schema."""
+    """Fresh DB per test: temp SQLite, or wipe+migrate Postgres when TEST_DATABASE_URL is set."""
     import db
     import main as core
     from settings import clear_settings_cache
+
+    # Threads only — Redis not required for unit tests.
+    monkeypatch.setenv("QUEUE_ENABLED", "false")
+    pg_url = _postgres_test_url()
+    if pg_url:
+        monkeypatch.setenv("DATABASE_URL", pg_url)
+        db.reset_engine()
+        clear_settings_cache()
+        _reset_postgres_schema(pg_url)
+        yield pg_url
+        db.reset_engine()
+        clear_settings_cache()
+        return
 
     db_path = str(tmp_path / "test.db")
     monkeypatch.setattr(db, "DB_PATH", db_path)
     monkeypatch.setattr(core, "DB_PATH", db_path)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     db.reset_engine()
-    # Threads only — Redis not required for unit tests.
-    monkeypatch.setenv("QUEUE_ENABLED", "false")
     clear_settings_cache()
     core.init_db()
     yield db_path

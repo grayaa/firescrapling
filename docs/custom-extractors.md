@@ -13,7 +13,7 @@ If you need bytes on disk, use your own tooling against the URLs you are allowed
 
 ## Framework
 
-1. Implement the protocol in [`extractors/base.py`](../apps/firescrapling/backend/extractors/base.py).
+1. Implement the protocol in [`extractors/base.py`](https://github.com/grayaa/firescrapling/blob/main/apps/firescrapling/backend/extractors/base.py).
 2. Register the extractor in the package registry (`extractors/__init__.py`).
 3. Call `POST /v1/extract/media` with a URL; list support via
    `GET /v1/extract/media/supported`.

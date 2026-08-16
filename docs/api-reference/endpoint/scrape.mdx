@@ -1,0 +1,21 @@
+---
+title: "POST /v1/scrape"
+description: "Scrape a single URL to Markdown or structured formats."
+---
+
+Scrape one page on **your** self-hosted instance.
+
+```bash
+curl -X POST "http://localhost:8000/v1/scrape" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "formats": ["markdown"],
+    "onlyMainContent": true
+  }'
+```
+
+Auth: API key (`fs_…`). Full schema: Swagger at `/docs` on your API, or
+[`openapi.yaml`](https://github.com/grayaa/firescrapling/blob/main/apps/firescrapling/backend/openapi.yaml)
+in the repo. See also [API Reference](/api-reference/introduction).

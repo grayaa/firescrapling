@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import sys
 from logging.config import fileConfig
+import logging
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -16,8 +17,11 @@ if _BACKEND not in sys.path:
 from db import default_database_url, metadata  # noqa: E402
 
 config = context.config
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Avoid fileConfig under pytest / when logging is already configured — Alembic's
+# default ini resets root handlers and breaks caplog / app loggers.
+if config.config_file_name is not None and not os.environ.get("PYTEST_CURRENT_TEST"):
+    if not logging.getLogger().handlers:
+        fileConfig(config.config_file_name)
 
 target_metadata = metadata
 

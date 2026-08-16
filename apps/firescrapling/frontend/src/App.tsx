@@ -3,7 +3,7 @@ import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
 import { BarChart4, Flame } from 'lucide-react';
 import { cn } from './lib/utils';
-import { getSessionToken, logoutUser, getCapabilities, PlatformCapabilities } from './api';
+import { getSessionToken, logoutUser, getCapabilities, PlatformCapabilities, SESSION_EXPIRED_EVENT } from './api';
 import { ApiDocsView } from './docs/api-docs';
 import { AuthView, UserData } from './features/auth';
 import { DashboardLayout } from './app/saas-layout';
@@ -58,6 +58,17 @@ export default function App() {
       .catch(() => setCaps(null));
   }, []);
 
+  // Postgres switch / DB wipe invalidates session tokens — force re-login.
+  useEffect(() => {
+    const onExpired = () => {
+      localStorage.removeItem('firescrapling_user');
+      setUser(null);
+      setActiveView('login', 'replace');
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, [setActiveView]);
+
   const hosted = caps?.hosted === true;
 
   const handleLogin = (userData: UserData) => {
@@ -110,7 +121,7 @@ export default function App() {
       case 'savings':
         return <SaaSSavings />;
       case 'settings':
-        return <SaaSSettings />;
+        return <SaaSSettings user={user} />;
       case 'docs':
         return <ApiDocsView />;
       case 'admin':
@@ -234,7 +245,9 @@ export default function App() {
       activeView={activeView}
       onViewChange={(id) => setActiveView(id)}
       onLogout={handleLogout}
+      userName={user?.full_name ?? undefined}
       userEmail={user?.email}
+      hosted={hosted}
     >
       <div className="dark relative">{renderContent()}</div>
     </DashboardLayout>

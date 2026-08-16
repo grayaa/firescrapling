@@ -1,0 +1,19 @@
+---
+title: "POST /v1/map"
+description: "Discover URLs from a seed page."
+---
+
+Map links from a seed URL on **your** self-hosted instance.
+
+```bash
+curl -X POST "http://localhost:8000/v1/map" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com"
+  }'
+```
+
+Auth: API key (`fs_…`). Schema:
+[`openapi.yaml`](https://github.com/grayaa/firescrapling/blob/main/apps/firescrapling/backend/openapi.yaml).
+See also [API Reference](/api-reference/introduction).

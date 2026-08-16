@@ -9,20 +9,15 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Menu, 
-  Moon, 
-  Sun, 
   Bell, 
   User, 
   LogOut,
   Search,
-  Zap,
   Flame,
   ShieldCheck,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from '../components/ui/button';
-import { Separator } from '../components/ui/separator';
-import { Badge } from '../components/ui/badge';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -55,16 +50,32 @@ interface LayoutProps {
   activeView: string;
   onViewChange: (id: string) => void;
   onLogout?: () => void;
+  /** Display name in the header (full name preferred). */
+  userName?: string;
   userEmail?: string;
+  /** When true (HOSTED_MODE), show plan label under the email. */
+  hosted?: boolean;
   children: React.ReactNode;
 }
 
-export function DashboardLayout({ activeView, onViewChange, onLogout, userEmail, children }: LayoutProps) {
+export function DashboardLayout({
+  activeView,
+  onViewChange,
+  onLogout,
+  userName,
+  userEmail,
+  hosted = false,
+  children,
+}: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
-  const [isDark, setIsDark] = React.useState(true);
+  const displayName =
+    (userName && userName.trim()) ||
+    (userEmail ? userEmail.split('@')[0] : '') ||
+    'Signed in';
+  const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
-    <div className={cn("min-h-screen flex bg-background text-foreground transition-colors duration-300", isDark ? "dark" : "")}>
+    <div className="min-h-screen flex bg-background text-foreground dark">
       {/* Sidebar */}
       <aside className={cn(
         "hidden md:flex flex-col border-r bg-card/40 backdrop-blur-xl transition-all duration-300 ease-in-out fixed inset-y-0 z-50",
@@ -77,7 +88,7 @@ export function DashboardLayout({ activeView, onViewChange, onLogout, userEmail,
             </div>
             {sidebarOpen && (
               <span className="font-heading font-black tracking-tighter text-xl text-white">
-                FIRESCRAILING
+                FIRESCRAPLING
               </span>
             )}
           </div>
@@ -136,15 +147,7 @@ export function DashboardLayout({ activeView, onViewChange, onLogout, userEmail,
           </div>
 
           <div className="flex items-center gap-4">
-            <Badge variant="outline" className="hidden lg:flex items-center gap-2 bg-emerald-500/5 text-emerald-500 border-emerald-500/20 py-1 px-3">
-              <Zap className="h-3 w-3 fill-current" />
-              <span className="text-[10px] font-bold uppercase tracking-widest">4,820 Credits Left</span>
-            </Badge>
-
             <div className="flex items-center gap-1 border-r pr-4 mr-2 border-border/50">
-              <Button variant="ghost" size="icon" onClick={() => setIsDark(!isDark)} className="text-muted-foreground">
-                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </Button>
               <Button variant="ghost" size="icon" className="text-muted-foreground">
                 <Bell className="h-4 w-4" />
               </Button>
@@ -154,27 +157,34 @@ export function DashboardLayout({ activeView, onViewChange, onLogout, userEmail,
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 hover:opacity-80 transition-opacity outline-none">
                   <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shadow-lg">
-                    {(userEmail || '?').slice(0, 2).toUpperCase()}
+                    {initials}
                   </div>
                   <div className="hidden sm:block text-left">
-                    <p className="text-xs font-bold leading-none">{userEmail || 'Signed in'}</p>
-                    <p className="text-[10px] text-muted-foreground">Free Plan</p>
+                    <p className="text-xs font-bold leading-none">{displayName}</p>
+                    {userEmail && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {hosted ? 'Free Plan' : userEmail}
+                      </p>
+                    )}
                   </div>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem><User className="mr-2 h-4 w-4" /> Profile</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onViewChange('settings')}>
+                  <User className="mr-2 h-4 w-4" /> Profile
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onViewChange('usage')}>
                   <BarChart3 className="mr-2 h-4 w-4" /> Usage
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onViewChange('settings')}>
                   <Settings className="mr-2 h-4 w-4" /> Settings
                 </DropdownMenuItem>
-                <DropdownMenuItem><Settings className="mr-2 h-4 w-4" /> Settings</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-500" onClick={onLogout}><LogOut className="mr-2 h-4 w-4" /> Logout</DropdownMenuItem>
+                <DropdownMenuItem className="text-red-500" onClick={onLogout}>
+                  <LogOut className="mr-2 h-4 w-4" /> Logout
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

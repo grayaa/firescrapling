@@ -1,8 +1,9 @@
 import React from 'react';
-import { Settings as SettingsIcon, Loader2 } from 'lucide-react';
+import { Settings as SettingsIcon, Loader2, User } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { getCapabilities, PlatformCapabilities } from '../restClient';
+import type { UserData } from './auth';
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -23,7 +24,7 @@ function yn(v: boolean | undefined) {
   );
 }
 
-export function SaaSSettings() {
+export function SaaSSettings({ user }: { user?: UserData | null }) {
   const [caps, setCaps] = React.useState<PlatformCapabilities | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -73,6 +74,22 @@ export function SaaSSettings() {
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           {error}
         </div>
+      )}
+
+      {user && (
+        <Card id="account" className="border-white/10 bg-card/40">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <User className="h-4 w-4 text-orange-500" /> Account
+            </CardTitle>
+            <CardDescription>Signed-in user on this instance</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Row label="Name" value={user.full_name?.trim() || '—'} />
+            <Row label="Email" value={user.email} />
+            <Row label="User id" value={<code className="text-xs">{user.id}</code>} />
+          </CardContent>
+        </Card>
       )}
 
       <Card className="border-white/10 bg-card/40">

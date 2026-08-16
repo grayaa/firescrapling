@@ -56,24 +56,39 @@ export function SaaSOverview({ onNavigate }: { onNavigate?: (view: string) => vo
 
   React.useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      getUsageSummary(WINDOW_DAYS),
-      getCapabilities(),
-      listApiKeys().catch(() => []),
-    ])
-      .then(([data, capabilities, keys]) => {
-        if (!cancelled) {
-          setSummary(data);
-          setCaps(capabilities);
-          setKeyCount(keys.length);
-        }
-      })
-      .catch((err: any) => {
-        if (!cancelled) setError(err?.message || 'Could not load usage data');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    setLoading(true);
+    // Load independently: a 401 on usage must not hide capabilities / checklist.
+    void Promise.all([
+      getUsageSummary(WINDOW_DAYS)
+        .then((data) => {
+          if (!cancelled) {
+            setSummary(data);
+            setError(null);
+          }
+        })
+        .catch((err: unknown) => {
+          if (!cancelled) {
+            setSummary(null);
+            setError(err instanceof Error ? err.message : 'Could not load usage data');
+          }
+        }),
+      getCapabilities()
+        .then((capabilities) => {
+          if (!cancelled) setCaps(capabilities);
+        })
+        .catch(() => {
+          if (!cancelled) setCaps(null);
+        }),
+      listApiKeys()
+        .then((keys) => {
+          if (!cancelled) setKeyCount(keys.length);
+        })
+        .catch(() => {
+          if (!cancelled) setKeyCount(0);
+        }),
+    ]).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
     return () => {
       cancelled = true;
     };

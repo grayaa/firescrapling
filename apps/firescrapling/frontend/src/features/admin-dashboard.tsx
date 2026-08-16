@@ -50,6 +50,7 @@ import {
   getAdminHealth,
   getAdminStats,
   getAdminToken,
+  getCapabilities,
   listAdminJobs,
   listAdminUsers,
   setAdminToken,
@@ -153,6 +154,7 @@ function AdminLoginGate({ onAuthed }: { onAuthed: () => void }) {
 export function AdminDashboard() {
   const [authed, setAuthed] = useState(() => Boolean(getAdminToken()));
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [hosted, setHosted] = useState(false);
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [health, setHealth] = useState<AdminHealth | null>(null);
@@ -247,6 +249,16 @@ export function AdminDashboard() {
   }, [handleUnauthorized, jobStatus, jobType, jobsOffset]);
 
   useEffect(() => {
+    void getCapabilities()
+      .then((c) => setHosted(c.hosted === true))
+      .catch(() => setHosted(false));
+  }, []);
+
+  useEffect(() => {
+    if (hosted && activeTab === 'billing') setActiveTab('overview');
+  }, [hosted, activeTab]);
+
+  useEffect(() => {
     if (!authed) return;
     if (activeTab === 'overview') void loadOverview();
   }, [authed, activeTab, loadOverview]);
@@ -300,7 +312,10 @@ export function AdminDashboard() {
     { id: 'overview' as const, label: 'System Health', icon: Activity },
     { id: 'users' as const, label: 'User Management', icon: Users },
     { id: 'jobs' as const, label: 'Jobs', icon: Briefcase },
-    { id: 'billing' as const, label: 'Financials', icon: CreditCard },
+    // Financials stub is for self-host operators (billing APIs are HOSTED_MODE-only).
+    ...(!hosted
+      ? [{ id: 'billing' as const, label: 'Financials', icon: CreditCard }]
+      : []),
     { id: 'settings' as const, label: 'Admin Settings', icon: Settings },
   ];
 
@@ -788,25 +803,34 @@ export function AdminDashboard() {
               </Card>
             )}
 
-            {(activeTab === 'billing' || activeTab === 'settings') && (
+            {!hosted && activeTab === 'billing' && (
               <Card className="shadow-none border-gray-200 rounded-lg bg-white">
                 <CardContent className="p-12 text-center space-y-3">
                   <div className="inline-flex p-4 rounded-full bg-gray-50 border border-gray-100">
-                    {activeTab === 'billing' ? (
-                      <CreditCard className="h-8 w-8 text-gray-300" />
-                    ) : (
-                      <Settings className="h-8 w-8 text-gray-300" />
-                    )}
+                    <CreditCard className="h-8 w-8 text-gray-300" />
                   </div>
-                  <h3 className="text-sm font-bold uppercase tracking-widest">
-                    {activeTab === 'billing' ? 'Financials' : 'Admin Settings'}
-                  </h3>
+                  <h3 className="text-sm font-bold uppercase tracking-widest">Financials</h3>
                   <p className="text-xs text-gray-400 font-medium max-w-sm mx-auto">
-                    Coming in Phase 4 — credits ledger, Stripe billing, and real admin config.
+                    Billing and plan management are available when{' '}
+                    <code className="text-[10px] bg-gray-100 px-1 rounded">HOSTED_MODE=true</code>.
+                    This instance is running self-hosted.
                   </p>
-                  <Badge variant="outline" className="text-[9px] font-black border-gray-200 text-gray-400">
-                    Phase 4
-                  </Badge>
+                </CardContent>
+              </Card>
+            )}
+
+            {activeTab === 'settings' && (
+              <Card className="shadow-none border-gray-200 rounded-lg bg-white">
+                <CardContent className="p-12 text-center space-y-3">
+                  <div className="inline-flex p-4 rounded-full bg-gray-50 border border-gray-100">
+                    <Settings className="h-8 w-8 text-gray-300" />
+                  </div>
+                  <h3 className="text-sm font-bold uppercase tracking-widest">Admin Settings</h3>
+                  <p className="text-xs text-gray-400 font-medium max-w-sm mx-auto">
+                    Admin access is controlled by{' '}
+                    <code className="text-[10px] bg-gray-100 px-1 rounded">ADMIN_SECRET</code>.
+                    There is no additional settings panel in this console yet.
+                  </p>
                 </CardContent>
               </Card>
             )}
