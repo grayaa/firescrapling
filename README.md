@@ -157,4 +157,6 @@ There is no hosted SaaS tier yet. If you want one, +1 or comment on the
 
 ## Licence
 
+Copyright (C) 2026 Grayaa Hammed
+
 [AGPL-3.0](LICENSE) — see SPDX identifier `AGPL-3.0-only`.
