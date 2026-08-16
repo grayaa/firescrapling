@@ -37,14 +37,11 @@ docker compose up --build -d
 Wait until the API is healthy:
 
 ```bash
-# Linux/macOS
-until curl -sf http://localhost:8000/health; do sleep 2; done
-
-# Windows PowerShell
-# while (-not (curl.exe -sf http://localhost:8000/health)) { Start-Sleep 2 }
+until curl -sf http://localhost:8000/health >/dev/null; do sleep 2; done
 ```
 
-Create the first account, an API key, and scrape:
+Then create the first account, an API key, and scrape (bash / zsh / Git Bash — needs
+`python` only to peel JSON from the login/key responses):
 
 ```bash
 curl -s -X POST http://localhost:8000/v1/auth/register \
