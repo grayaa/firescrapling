@@ -32,10 +32,9 @@ apps/firescrapling/screenshots/
 Thumbs.db
 .idea/
 
-# Editor config: share the project-level bits, ignore personal state
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
+# Personal / IDE agent config — not part of the published product
+.cursor/
+.vscode/
 
 # --- Local-only strategy docs (not part of the public docs site) ---
 docs/plan/

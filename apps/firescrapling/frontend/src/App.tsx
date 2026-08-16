@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
 import { BarChart4, Flame } from 'lucide-react';
@@ -17,8 +17,8 @@ import { SaaSWebhooks } from './app/saas-webhooks';
 import { SaaSProviders } from './app/saas-providers';
 import { SaaSSavings } from './app/saas-savings';
 import { SaaSSettings } from './app/saas-settings';
-
-const GITHUB_URL = 'https://github.com/firescrapling/firescrapling';
+import { GITHUB_URL } from './lib/github';
+import { readViewFromLocation, syncUrl } from './lib/nav';
 
 export default function App() {
   const [user, setUser] = useState<UserData | null>(() => {
@@ -34,8 +34,23 @@ export default function App() {
     }
   });
 
-  const [activeView, setActiveView] = useState<string>('landing');
+  const [activeView, setActiveViewState] = useState<string>(() => readViewFromLocation());
   const [caps, setCaps] = useState<PlatformCapabilities | null>(null);
+
+  const setActiveView = useCallback((view: string, mode: 'push' | 'replace' = 'push', search?: string) => {
+    setActiveViewState(view);
+    syncUrl(view, mode, search);
+  }, []);
+
+  useEffect(() => {
+    const onPopState = () => {
+      setActiveViewState(readViewFromLocation());
+    };
+    window.addEventListener('popstate', onPopState);
+    // Align URL if we landed on an unknown path mapped to landing
+    syncUrl(readViewFromLocation(), 'replace');
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   useEffect(() => {
     void getCapabilities()
@@ -48,18 +63,27 @@ export default function App() {
   const handleLogin = (userData: UserData) => {
     localStorage.setItem('firescrapling_user', JSON.stringify(userData));
     setUser(userData);
-    setActiveView('overview');
+    const dest = readViewFromLocation();
+    const next = dest === 'login' || dest === 'landing' ? 'overview' : dest;
+    setActiveView(next, 'replace');
   };
 
   const handleLogout = () => {
     void logoutUser();
     localStorage.removeItem('firescrapling_user');
     setUser(null);
-    setActiveView('landing');
+    setActiveView('landing', 'replace');
   };
 
   const publicViews = new Set(['landing', 'docs', ...(hosted ? (['pricing'] as const) : [])]);
 
+  useEffect(() => {
+    if (user && activeView === 'login') {
+      setActiveView('overview', 'replace');
+    }
+  }, [user, activeView, setActiveView]);
+
+  // Unauthenticated visit to a dashboard route → auth screen (URL kept for deep link)
   if (!user && !publicViews.has(activeView)) {
     return <AuthView onLogin={handleLogin} />;
   }
@@ -76,7 +100,7 @@ export default function App() {
       case 'pricing':
         return hosted ? <SaaSInternalPricing /> : <LandingHero onViewDocs={() => setActiveView('docs')} />;
       case 'overview':
-        return <SaaSOverview onNavigate={setActiveView} />;
+        return <SaaSOverview onNavigate={(v) => setActiveView(v)} />;
       case 'playground':
         return <SaaSPlayground />;
       case 'api-keys':
@@ -112,8 +136,10 @@ export default function App() {
             </div>
           </div>
         );
+      case 'login':
+        return <AuthView onLogin={handleLogin} />;
       default:
-        return <SaaSOverview />;
+        return <SaaSOverview onNavigate={(v) => setActiveView(v)} />;
     }
   };
 
@@ -130,12 +156,14 @@ export default function App() {
           <div className="flex items-center gap-6">
             <nav className="hidden md:flex items-center gap-8 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
               <button
+                type="button"
                 onClick={() => setActiveView('landing')}
                 className={cn('hover:text-white transition-colors', activeView === 'landing' && 'text-white')}
               >
                 Features
               </button>
               <button
+                type="button"
                 onClick={() => setActiveView('docs')}
                 className={cn('hover:text-white transition-colors', activeView === 'docs' && 'text-white')}
               >
@@ -151,6 +179,7 @@ export default function App() {
               </a>
               {hosted && (
                 <button
+                  type="button"
                   onClick={() => setActiveView('pricing')}
                   className={cn('hover:text-white transition-colors', activeView === 'pricing' && 'text-white')}
                 >
@@ -162,17 +191,21 @@ export default function App() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setActiveView('overview')}
+                onClick={() => setActiveView(user ? 'overview' : 'login')}
                 className="text-[10px] font-black uppercase tracking-widest"
               >
                 Log In
               </Button>
               <Button
                 size="sm"
-                onClick={() => setActiveView('overview')}
+                onClick={() =>
+                  user
+                    ? setActiveView('overview')
+                    : setActiveView('login', 'push', caps?.registration_open === false ? '' : '?register=1')
+                }
                 className="bg-orange-600 text-white font-black uppercase tracking-widest shadow-xl shadow-orange-600/20 px-6"
               >
-                Open dashboard
+                {user ? 'Open dashboard' : caps?.registration_open === false ? 'Sign in' : 'Register'}
               </Button>
             </div>
           </div>
@@ -199,7 +232,7 @@ export default function App() {
   return (
     <DashboardLayout
       activeView={activeView}
-      onViewChange={setActiveView}
+      onViewChange={(id) => setActiveView(id)}
       onLogout={handleLogout}
       userEmail={user?.email}
     >

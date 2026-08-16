@@ -6,9 +6,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
 import { Terminal, Globe, Code2, Copy, Braces, Sparkles, Server, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from '../components/ui/button';
+import { publicApiRoot } from '../restClient';
 
 export function ApiDocsView() {
   const [activeLang, setActiveLang] = React.useState<'python' | 'curl' | 'javascript'>('curl');
+  // Resolves from VITE_API_BASE_URL, else this browser origin (nginx proxies /v1).
+  const API = publicApiRoot();
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -26,7 +29,7 @@ export function ApiDocsView() {
         { name: 'actions', type: 'array', description: 'Array of interaction steps (wait, click, scroll).' }
       ],
       code: {
-        curl: `curl -X POST "https://api.firescrapling.com/v1/scrape" \\
+        curl: `curl -X POST "${API}/scrape" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -40,7 +43,7 @@ export function ApiDocsView() {
   }'`,
         python: `import requests
 
-url = "https://api.firescrapling.com/v1/scrape"
+url = "${API}/scrape"
 payload = {
     "url": "https://stripe.com/docs",
     "formats": ["markdown"],
@@ -54,7 +57,7 @@ headers = {"Authorization": "Bearer YOUR_API_KEY"}
 
 response = requests.post(url, json=payload, headers=headers)
 print(response.json())`,
-        javascript: `const response = await fetch('https://api.firescrapling.com/v1/scrape', {
+        javascript: `const response = await fetch('${API}/scrape', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer YOUR_API_KEY',
@@ -86,7 +89,7 @@ console.log(data);`
         { name: 'webhook', type: 'string', description: 'Destination URL for event notifications.' }
       ],
       code: {
-        curl: `curl -X POST "https://api.firescrapling.com/v1/crawl" \\
+        curl: `curl -X POST "${API}/crawl" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -96,7 +99,7 @@ console.log(data);`
   }'`,
         python: `import requests
 
-url = "https://api.firescrapling.com/v1/crawl"
+url = "${API}/crawl"
 payload = {
     "url": "https://example.com",
     "limit": 100,
@@ -106,7 +109,7 @@ headers = {"Authorization": "Bearer YOUR_API_KEY"}
 
 response = requests.post(url, json=payload, headers=headers)
 print(response.json())`,
-        javascript: `const response = await fetch('https://api.firescrapling.com/v1/crawl', {
+        javascript: `const response = await fetch('${API}/crawl', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer YOUR_API_KEY',
@@ -131,16 +134,16 @@ console.log(data);`
         { name: 'id', type: 'string', required: true, description: 'The unique crawl job identifier.' }
       ],
       code: {
-        curl: `curl "https://api.firescrapling.com/v1/crawl/job_9k2f1" \\
+        curl: `curl "${API}/crawl/job_9k2f1" \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
         python: `import requests
 
-url = "https://api.firescrapling.com/v1/crawl/job_9k2f1"
+url = "${API}/crawl/job_9k2f1"
 headers = {"Authorization": "Bearer YOUR_API_KEY"}
 
 response = requests.get(url, headers=headers)
 print(response.json())`,
-        javascript: `const response = await fetch('https://api.firescrapling.com/v1/crawl/job_9k2f1', {
+        javascript: `const response = await fetch('${API}/crawl/job_9k2f1', {
   headers: { 'Authorization': 'Bearer YOUR_API_KEY' }
 });
 
@@ -156,16 +159,16 @@ console.log(data);`
         { name: 'limit', type: 'integer', default: '50', description: 'Max jobs to return (1–200).' },
       ],
       code: {
-        curl: `curl "https://api.firescrapling.com/v1/jobs?limit=30" \\
+        curl: `curl "${API}/jobs?limit=30" \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
         python: `import requests
 
-url = "https://api.firescrapling.com/v1/jobs"
+url = "${API}/jobs"
 headers = {"Authorization": "Bearer YOUR_API_KEY"}
 
 response = requests.get(url, params={"limit": 30}, headers=headers)
 print(response.json())`,
-        javascript: `const response = await fetch('https://api.firescrapling.com/v1/jobs?limit=30', {
+        javascript: `const response = await fetch('${API}/jobs?limit=30', {
   headers: { 'Authorization': 'Bearer YOUR_API_KEY' }
 });
 
@@ -183,7 +186,7 @@ console.log(data);`
         { name: 'ignoreSubdomains', type: 'boolean', default: 'false', description: 'Ignore links to subdomains.' }
       ],
       code: {
-        curl: `curl -X POST "https://api.firescrapling.com/v1/map" \\
+        curl: `curl -X POST "${API}/map" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -192,7 +195,7 @@ console.log(data);`
   }'`,
         python: `import requests
 
-url = "https://api.firescrapling.com/v1/map"
+url = "${API}/map"
 payload = {
     "url": "https://example.com",
     "search": "blog"
@@ -201,7 +204,7 @@ headers = {"Authorization": "Bearer YOUR_API_KEY"}
 
 response = requests.post(url, json=payload, headers=headers)
 print(response.json())`,
-        javascript: `const response = await fetch('https://api.firescrapling.com/v1/map', {
+        javascript: `const response = await fetch('${API}/map', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer YOUR_API_KEY',
@@ -223,9 +226,9 @@ console.log(data);`
       description: 'Public instance flags (hosted, BYOK, queue, credential source, registration).',
       params: [],
       code: {
-        curl: `curl "http://localhost:8000/v1/capabilities"`,
-        python: `import requests\nprint(requests.get("http://localhost:8000/v1/capabilities").json())`,
-        javascript: `const data = await fetch('http://localhost:8000/v1/capabilities').then(r => r.json());\nconsole.log(data);`,
+        curl: `curl "${API}/capabilities"`,
+        python: `import requests\nprint(requests.get("${API}/capabilities").json())`,
+        javascript: `const data = await fetch('${API}/capabilities').then(r => r.json());\nconsole.log(data);`,
       },
     },
     {
@@ -236,9 +239,9 @@ console.log(data);`
         { name: 'days', type: 'integer', default: '30', description: 'Lookback window.' },
       ],
       code: {
-        curl: `curl "http://localhost:8000/v1/usage/fetch-savings?days=30" \\\n  -H "Authorization: Bearer SESSION_TOKEN"`,
-        python: `import requests\nr = requests.get("http://localhost:8000/v1/usage/fetch-savings", headers={"Authorization": "Bearer SESSION_TOKEN"})\nprint(r.json())`,
-        javascript: `const data = await fetch('http://localhost:8000/v1/usage/fetch-savings?days=30', {\n  headers: { Authorization: 'Bearer SESSION_TOKEN' }\n}).then(r => r.json());\nconsole.log(data);`,
+        curl: `curl "${API}/usage/fetch-savings?days=30" \\\n  -H "Authorization: Bearer SESSION_TOKEN"`,
+        python: `import requests\nr = requests.get("${API}/usage/fetch-savings", headers={"Authorization": "Bearer SESSION_TOKEN"})\nprint(r.json())`,
+        javascript: `const data = await fetch('${API}/usage/fetch-savings?days=30', {\n  headers: { Authorization: 'Bearer SESSION_TOKEN' }\n}).then(r => r.json());\nconsole.log(data);`,
       },
     },
     {
@@ -247,9 +250,9 @@ console.log(data);`
       description: 'List BYOK provider credentials (session auth). Keys never returned in full.',
       params: [],
       code: {
-        curl: `curl "http://localhost:8000/v1/providers" \\\n  -H "Authorization: Bearer SESSION_TOKEN"`,
-        python: `import requests\nr = requests.get("http://localhost:8000/v1/providers", headers={"Authorization": "Bearer SESSION_TOKEN"})\nprint(r.json())`,
-        javascript: `const data = await fetch('http://localhost:8000/v1/providers', {\n  headers: { Authorization: 'Bearer SESSION_TOKEN' }\n}).then(r => r.json());\nconsole.log(data);`,
+        curl: `curl "${API}/providers" \\\n  -H "Authorization: Bearer SESSION_TOKEN"`,
+        python: `import requests\nr = requests.get("${API}/providers", headers={"Authorization": "Bearer SESSION_TOKEN"})\nprint(r.json())`,
+        javascript: `const data = await fetch('${API}/providers', {\n  headers: { Authorization: 'Bearer SESSION_TOKEN' }\n}).then(r => r.json());\nconsole.log(data);`,
       },
     },
     {
@@ -262,9 +265,9 @@ console.log(data);`
         { name: 'label', type: 'string', description: 'Optional label.' },
       ],
       code: {
-        curl: `curl -X POST "http://localhost:8000/v1/providers" \\\n  -H "Authorization: Bearer SESSION_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{"provider":"scrapedo","api_key":"YOUR_PROVIDER_KEY","label":"prod"}'`,
-        python: `import requests\nr = requests.post("http://localhost:8000/v1/providers", headers={"Authorization": "Bearer SESSION_TOKEN"}, json={"provider":"scrapedo","api_key":"YOUR_PROVIDER_KEY"})\nprint(r.json())`,
-        javascript: `const data = await fetch('http://localhost:8000/v1/providers', {\n  method: 'POST',\n  headers: { Authorization: 'Bearer SESSION_TOKEN', 'Content-Type': 'application/json' },\n  body: JSON.stringify({ provider: 'scrapedo', api_key: 'YOUR_PROVIDER_KEY' })\n}).then(r => r.json());\nconsole.log(data);`,
+        curl: `curl -X POST "${API}/providers" \\\n  -H "Authorization: Bearer SESSION_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{"provider":"scrapedo","api_key":"YOUR_PROVIDER_KEY","label":"prod"}'`,
+        python: `import requests\nr = requests.post("${API}/providers", headers={"Authorization": "Bearer SESSION_TOKEN"}, json={"provider":"scrapedo","api_key":"YOUR_PROVIDER_KEY"})\nprint(r.json())`,
+        javascript: `const data = await fetch('${API}/providers', {\n  method: 'POST',\n  headers: { Authorization: 'Bearer SESSION_TOKEN', 'Content-Type': 'application/json' },\n  body: JSON.stringify({ provider: 'scrapedo', api_key: 'YOUR_PROVIDER_KEY' })\n}).then(r => r.json());\nconsole.log(data);`,
       },
     },
     {
@@ -276,9 +279,9 @@ console.log(data);`
         { name: 'password', type: 'string', required: true, description: 'Account password.' },
       ],
       code: {
-        curl: `curl -X POST "http://localhost:8000/v1/auth/login" \\\n  -H "Content-Type: application/json" \\\n  -d '{"email":"you@example.com","password":"…"}'`,
-        python: `import requests\nr = requests.post("http://localhost:8000/v1/auth/login", json={"email":"you@example.com","password":"…"})\nprint(r.json()["session_token"])`,
-        javascript: `const data = await fetch('http://localhost:8000/v1/auth/login', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ email: 'you@example.com', password: '…' })\n}).then(r => r.json());\nconsole.log(data.session_token);`,
+        curl: `curl -X POST "${API}/auth/login" \\\n  -H "Content-Type: application/json" \\\n  -d '{"email":"you@example.com","password":"…"}'`,
+        python: `import requests\nr = requests.post("${API}/auth/login", json={"email":"you@example.com","password":"…"})\nprint(r.json()["session_token"])`,
+        javascript: `const data = await fetch('${API}/auth/login', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ email: 'you@example.com', password: '…' })\n}).then(r => r.json());\nconsole.log(data.session_token);`,
       },
     },
     {
@@ -289,9 +292,9 @@ console.log(data);`
         { name: 'name', type: 'string', required: true, description: 'Key label.' },
       ],
       code: {
-        curl: `curl -X POST "http://localhost:8000/v1/keys" \\\n  -H "Authorization: Bearer SESSION_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{"name":"ci"}'`,
-        python: `import requests\nr = requests.post("http://localhost:8000/v1/keys", headers={"Authorization": "Bearer SESSION_TOKEN"}, json={"name":"ci"})\nprint(r.json()["key"]["value"])`,
-        javascript: `const data = await fetch('http://localhost:8000/v1/keys', {\n  method: 'POST',\n  headers: { Authorization: 'Bearer SESSION_TOKEN', 'Content-Type': 'application/json' },\n  body: JSON.stringify({ name: 'ci' })\n}).then(r => r.json());\nconsole.log(data.key.value);`,
+        curl: `curl -X POST "${API}/keys" \\\n  -H "Authorization: Bearer SESSION_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{"name":"ci"}'`,
+        python: `import requests\nr = requests.post("${API}/keys", headers={"Authorization": "Bearer SESSION_TOKEN"}, json={"name":"ci"})\nprint(r.json()["key"]["value"])`,
+        javascript: `const data = await fetch('${API}/keys', {\n  method: 'POST',\n  headers: { Authorization: 'Bearer SESSION_TOKEN', 'Content-Type': 'application/json' },\n  body: JSON.stringify({ name: 'ci' })\n}).then(r => r.json());\nconsole.log(data.key.value);`,
       },
     },
     {
@@ -302,9 +305,9 @@ console.log(data);`
         { name: 'extractMedia', type: 'boolean', description: 'When true, run registered custom extractors.' },
       ],
       code: {
-        curl: `curl -X POST "http://localhost:8000/v1/scrape" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"url":"https://example.com","formats":["markdown"],"extractMedia":true}'`,
-        python: `import requests\nr = requests.post("http://localhost:8000/v1/scrape", headers={"Authorization": "Bearer YOUR_API_KEY"}, json={"url":"https://example.com","formats":["markdown"],"extractMedia":True})\nprint(r.json())`,
-        javascript: `const data = await fetch('http://localhost:8000/v1/scrape', {\n  method: 'POST',\n  headers: { Authorization: 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },\n  body: JSON.stringify({ url: 'https://example.com', formats: ['markdown'], extractMedia: true })\n}).then(r => r.json());\nconsole.log(data);`,
+        curl: `curl -X POST "${API}/scrape" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"url":"https://example.com","formats":["markdown"],"extractMedia":true}'`,
+        python: `import requests\nr = requests.post("${API}/scrape", headers={"Authorization": "Bearer YOUR_API_KEY"}, json={"url":"https://example.com","formats":["markdown"],"extractMedia":True})\nprint(r.json())`,
+        javascript: `const data = await fetch('${API}/scrape', {\n  method: 'POST',\n  headers: { Authorization: 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },\n  body: JSON.stringify({ url: 'https://example.com', formats: ['markdown'], extractMedia: true })\n}).then(r => r.json());\nconsole.log(data);`,
       },
     },
   ];
@@ -327,7 +330,10 @@ console.log(data);`
             <CardTitle className="text-xs font-bold uppercase tracking-widest text-orange-400">Base URL</CardTitle>
           </CardHeader>
           <CardContent>
-            <code className="text-sm font-mono text-orange-200">https://api.firescrapling.com/v1</code>
+            <code className="text-sm font-mono text-orange-200">{API}</code>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Your instance — override with <code className="text-zinc-400">VITE_API_BASE_URL</code> if the API is on another host.
+            </p>
           </CardContent>
         </Card>
         <Card className="bg-card/40 border-border">

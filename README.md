@@ -6,6 +6,8 @@ Self-hostable cost-control layer for teams already paying [Scrape.do](https://sc
 [Scrapfly](https://scrapfly.io). Bring your own provider key; escalate fetch tiers only when
 needed; turn URLs into LLM-ready Markdown. Flat orchestration — not a credit reseller.
 
+![FireScrapling landing — open source, self-host first](docs/assets/screenshot.png)
+
 ## Why
 
 Always-on anti-bot (ASP / residential) burns credits. FireScrapling runs a cheap-first ladder
@@ -72,8 +74,8 @@ account in the UI, create an API key under **API Keys**, then run only the final
 - Dashboard: http://localhost:8080  
 - API: http://localhost:8000 (`/docs` for Swagger)
 
-Defaults: `HOSTED_MODE=false`, `PLAYGROUND_ENABLED=false`, `ALLOW_REGISTRATION=false`
-(registration closes after the first account; playground is opt-in).
+Defaults: `HOSTED_MODE=false`, `PLAYGROUND_ENABLED=false`, `ALLOW_REGISTRATION=true`
+(sign-up on the login page; set `ALLOW_REGISTRATION=false` to lock after the first account).
 
 ## BYOK
 
@@ -100,7 +102,7 @@ Without BYOK, platform env keys (`SCRAPE_API_KEY` / `SCRAPFLY_API_KEY`) work whe
 | Variable | Default | Notes |
 |----------|---------|--------|
 | `HOSTED_MODE` | `false` | Billing / plan gates |
-| `ALLOW_REGISTRATION` | `false` | Extra signups after first account |
+| `ALLOW_REGISTRATION` | `true` | Login-page sign-up; set `false` to lock after first account |
 | `PLAYGROUND_ENABLED` | `false` | Unauthenticated demo |
 | `BYOK_ENABLED` | `false` | Per-user provider keys |
 | `CREDENTIAL_ENCRYPTION_KEY` | — | Required if BYOK on |
@@ -111,7 +113,7 @@ Without BYOK, platform env keys (`SCRAPE_API_KEY` / `SCRAPFLY_API_KEY`) work whe
 | `REDIS_URL` | `redis://redis:6379/0` | RQ workers |
 | `ADMIN_SECRET` | — | `/v1/admin/*` |
 
-Full commented list: [`.env.example`](.env.example).
+Starter file: [`.env.example`](.env.example). More options: [docs/self-host.md](docs/self-host.md).
 
 ## Architecture
 

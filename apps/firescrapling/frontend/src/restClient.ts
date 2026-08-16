@@ -76,6 +76,16 @@ export function apiBaseUrl(): string {
   return typeof v === "string" && v.trim() ? v.replace(/\/$/, "") : "";
 }
 
+/** Absolute API root for docs / copy-paste (`…/v1`). Prefers VITE_API_BASE_URL, else this origin. */
+export function publicApiRoot(): string {
+  const base = apiBaseUrl();
+  if (base) return `${base.replace(/\/$/, "")}/v1`;
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return `${window.location.origin}/v1`;
+  }
+  return "http://localhost:8000/v1";
+}
+
 function joinUrl(path: string): string {
   const base = apiBaseUrl();
   if (!path.startsWith("/")) path = `/${path}`;

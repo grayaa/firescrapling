@@ -12,8 +12,8 @@ import {
   Cpu,
   BookOpen,
 } from 'lucide-react';
+import { GITHUB_URL } from '../lib/github';
 
-const GITHUB_URL = 'https://github.com/firescrapling/firescrapling';
 const CLONE_CMD = `git clone ${GITHUB_URL}.git
 cd firescrapling
 cp .env.example .env
@@ -68,13 +68,14 @@ export function LandingHero({ onViewDocs }: { onViewDocs: () => void; onGetStart
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Button
-            size="lg"
-            className="h-12 px-8 text-sm font-bold uppercase tracking-widest bg-orange-600 hover:bg-orange-700"
-            onClick={() => window.open(GITHUB_URL, '_blank')}
+          <a
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-primary-foreground shadow rounded-md h-12 px-8 text-sm font-bold uppercase tracking-widest bg-orange-600 hover:bg-orange-700"
           >
             GitHub
-          </Button>
+          </a>
           <Button
             onClick={onViewDocs}
             variant="outline"

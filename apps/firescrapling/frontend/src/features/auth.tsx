@@ -5,7 +5,6 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Flame, LogIn, UserPlus, Mail, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
-import { cn } from '../lib/utils';
 import { loginUser, registerUser, getCapabilities } from '../restClient';
 
 export interface UserData {
@@ -21,10 +20,17 @@ interface AuthProps {
 export function AuthView({ onLogin }: AuthProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'login' | 'register'>('login');
+  const [tab, setTab] = useState<'login' | 'register'>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('register') === '1'
+        ? 'register'
+        : 'login';
+    } catch {
+      return 'login';
+    }
+  });
   const [registrationOpen, setRegistrationOpen] = useState(true);
 
-  // Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -34,7 +40,9 @@ export function AuthView({ onLogin }: AuthProps) {
       .then((c) => {
         const open = c.registration_open !== false;
         setRegistrationOpen(open);
-        if (!open) setTab('login');
+        // Keep ?register=1 on the register tab even when closed (shows how to enable).
+        const wantRegister = new URLSearchParams(window.location.search).get('register') === '1';
+        if (!open && !wantRegister) setTab('login');
       })
       .catch(() => setRegistrationOpen(true));
   }, []);
@@ -55,10 +63,13 @@ export function AuthView({ onLogin }: AuthProps) {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!registrationOpen) {
+      setError('Registration is closed. Set ALLOW_REGISTRATION=true in your .env and restart.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      // registerUser chains a login, so the user lands signed in.
       const user = await registerUser(email, password, fullName);
       onLogin({ id: user.id, email: user.email, full_name: user.full_name ?? null });
     } catch (err: any) {
@@ -72,7 +83,7 @@ export function AuthView({ onLogin }: AuthProps) {
     <div className="min-h-screen bg-background flex items-center justify-center p-4 overflow-hidden relative">
       <div className="absolute inset-0 bg-dot-grid opacity-[0.1] pointer-events-none" />
       <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent pointer-events-none" />
-      
+
       <div className="w-full max-w-[400px] z-10 animate-in fade-in zoom-in duration-500">
         <div className="flex flex-col items-center mb-8 space-y-4">
           <div className="bg-gradient-to-br from-orange-500 to-red-600 p-4 rounded-2xl shadow-2xl shadow-orange-500/20">
@@ -85,18 +96,13 @@ export function AuthView({ onLogin }: AuthProps) {
         </div>
 
         <Tabs value={tab} onValueChange={(v: any) => setTab(v)} className="w-full">
-          <TabsList className={cn(
-            "grid w-full bg-zinc-900/50 border border-white/5 h-12",
-            registrationOpen ? "grid-cols-2" : "grid-cols-1"
-          )}>
+          <TabsList className="grid w-full grid-cols-2 bg-zinc-900/50 border border-white/5 h-12">
             <TabsTrigger value="login" className="data-[state=active]:bg-orange-600 data-[state=active]:text-white font-bold text-xs">
               <LogIn className="h-3 w-3 mr-2" /> LOGIN
             </TabsTrigger>
-            {registrationOpen && (
-              <TabsTrigger value="register" className="data-[state=active]:bg-orange-600 data-[state=active]:text-white font-bold text-xs">
-                <UserPlus className="h-3 w-3 mr-2" /> REGISTER
-              </TabsTrigger>
-            )}
+            <TabsTrigger value="register" className="data-[state=active]:bg-orange-600 data-[state=active]:text-white font-bold text-xs">
+              <UserPlus className="h-3 w-3 mr-2" /> REGISTER
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="login" className="mt-4">
@@ -107,7 +113,7 @@ export function AuthView({ onLogin }: AuthProps) {
                   <CardDescription>Enter your credentials to access your scrapes.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {error && (
+                  {error && tab === 'login' && (
                     <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-lg flex items-center gap-2 text-xs text-red-400">
                       <AlertCircle className="h-4 w-4 shrink-0" />
                       {error}
@@ -117,9 +123,9 @@ export function AuthView({ onLogin }: AuthProps) {
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        type="email" 
-                        placeholder="name@example.com" 
+                      <Input
+                        type="email"
+                        placeholder="name@example.com"
                         className="pl-10 bg-black/20 border-white/10"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
@@ -131,9 +137,9 @@ export function AuthView({ onLogin }: AuthProps) {
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        type="password" 
-                        placeholder="••••••••" 
+                      <Input
+                        type="password"
+                        placeholder="••••••••"
                         className="pl-10 bg-black/20 border-white/10"
                         value={password}
                         onChange={e => setPassword(e.target.value)}
@@ -142,26 +148,42 @@ export function AuthView({ onLogin }: AuthProps) {
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="flex flex-col gap-3">
                   <Button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 font-bold" disabled={loading}>
                     {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <LogIn className="h-4 w-4 mr-2" />}
                     SIGN IN
                   </Button>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-orange-400 transition-colors"
+                    onClick={() => { setError(null); setTab('register'); }}
+                  >
+                    Need an account? Create one
+                  </button>
                 </CardFooter>
               </form>
             </Card>
           </TabsContent>
 
           <TabsContent value="register" className="mt-4">
-            {registrationOpen && (
             <Card className="bg-zinc-900/40 border-white/5 backdrop-blur-xl">
               <form onSubmit={handleRegister}>
                 <CardHeader>
                   <CardTitle className="text-lg font-heading">Create Account</CardTitle>
-                  <CardDescription>Start extracting LLM-ready data today.</CardDescription>
+                  <CardDescription>
+                    {registrationOpen
+                      ? 'Register on this instance, then create an API key in the dashboard.'
+                      : 'Registration is currently closed on this instance.'}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {error && (
+                  {!registrationOpen && (
+                    <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg text-xs text-amber-200/90">
+                      Set <code className="text-amber-100">ALLOW_REGISTRATION=true</code> in your{' '}
+                      <code className="text-amber-100">.env</code> and restart the stack to enable sign-up.
+                    </div>
+                  )}
+                  {error && tab === 'register' && (
                     <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-lg flex items-center gap-2 text-xs text-red-400">
                       <AlertCircle className="h-4 w-4 shrink-0" />
                       {error}
@@ -171,11 +193,12 @@ export function AuthView({ onLogin }: AuthProps) {
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Full Name</Label>
                     <div className="relative">
                       <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        placeholder="John Doe" 
+                      <Input
+                        placeholder="John Doe"
                         className="pl-10 bg-black/20 border-white/10"
                         value={fullName}
                         onChange={e => setFullName(e.target.value)}
+                        disabled={!registrationOpen}
                       />
                     </div>
                   </div>
@@ -183,13 +206,14 @@ export function AuthView({ onLogin }: AuthProps) {
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        type="email" 
-                        placeholder="name@example.com" 
+                      <Input
+                        type="email"
+                        placeholder="name@example.com"
                         className="pl-10 bg-black/20 border-white/10"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
                         required
+                        disabled={!registrationOpen}
                       />
                     </div>
                   </div>
@@ -197,33 +221,44 @@ export function AuthView({ onLogin }: AuthProps) {
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        type="password" 
-                        placeholder="••••••••" 
+                      <Input
+                        type="password"
+                        placeholder="••••••••"
                         className="pl-10 bg-black/20 border-white/10"
                         value={password}
                         onChange={e => setPassword(e.target.value)}
                         required
+                        disabled={!registrationOpen}
                       />
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter>
-                  <Button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 font-bold" disabled={loading}>
+                <CardFooter className="flex flex-col gap-3">
+                  <Button
+                    type="submit"
+                    className="w-full bg-orange-600 hover:bg-orange-700 font-bold"
+                    disabled={loading || !registrationOpen}
+                  >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
                     CREATE ACCOUNT
                   </Button>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-orange-400 transition-colors"
+                    onClick={() => { setError(null); setTab('login'); }}
+                  >
+                    Already have an account? Sign in
+                  </button>
                 </CardFooter>
               </form>
             </Card>
-            )}
           </TabsContent>
         </Tabs>
 
         <div className="mt-8 text-center">
-           <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-[0.2em]">
-             Secured by FireScrapling Stealth Engine
-           </p>
+          <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-[0.2em]">
+            Self-hosted · your instance
+          </p>
         </div>
       </div>
     </div>
